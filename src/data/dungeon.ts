@@ -35,6 +35,7 @@ export const THEMES: Theme[] = [
   { name: '地窖墓穴', floorTex: 'crypt_floor', wallTex: 'crypt_wall', waterChance: 0, floorMeters: 3.2, wallMeters: 3.5, runes: false, speedInWater: 1 },
   { name: '淹沒禮拜堂', floorTex: 'chapel_floor', wallTex: 'chapel_wall', waterChance: 0.55, floorMeters: 2.6, wallMeters: 3.2, runes: false, speedInWater: 0.6 },
   { name: '封印之井', floorTex: 'well_floor', wallTex: 'well_wall', waterChance: 0, floorMeters: 2.8, wallMeters: 3.6, runes: true, speedInWater: 1 },
+  { name: '院長之室', floorTex: 'well_floor', wallTex: 'well_wall', waterChance: 0, floorMeters: 2.8, wallMeters: 3.6, runes: false, speedInWater: 1 },
 ];
 
 export const TOWN: Theme = { name: '荒鐘鎮', floorTex: 'town_floor', wallTex: 'town_wall', waterChance: 0, floorMeters: 3, wallMeters: 3.4, runes: false, speedInWater: 1 };

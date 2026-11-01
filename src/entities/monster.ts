@@ -41,23 +41,24 @@ export class Monster {
   private mixer: AnimationMixer;
   private idle: AnimationAction;
   private walk: AnimationAction;
-  private mats: MeshStandardMaterial[] = [];
+  protected mats: MeshStandardMaterial[] = [];
   private bones: SwingBones;
   private path: Pt[] = [];
-  private timer = 0;
+  protected timer = 0;
   private repath = 0;
   private struck = false;
   private flash = 0;
   private deadFor = 0;
-  private yaw = Math.random() * Math.PI * 2;
+  protected yaw = Math.random() * Math.PI * 2;
   private walking = false;
-  private summonIn = AI.caster.summonEvery * 0.5;
+  private casterIn = AI.caster.summonEvery * 0.5;
   private fled = false;
+  private backing = 0;
   level: number;
 
   constructor(
-    private scene: Scene, src: GLTF, private grid: Grid, public id: MonsterId, x: number, z: number,
-    level: number, traits: EliteTrait[], shadows: boolean, private ev: MonsterEvents,
+    private scene: Scene, src: GLTF, protected grid: Grid, public id: MonsterId, x: number, z: number,
+    level: number, traits: EliteTrait[], shadows: boolean, protected ev: MonsterEvents,
   ) {
     const def = this.def = MONSTERS[id];
     this.level = level;
@@ -122,7 +123,7 @@ export class Monster {
       if (Math.random() < AI.flee.chance) { this.fear(AI.flee.time); return; }
     }
     // 巨屍同出緊招嘅怪唔會俾打斷
-    if (this.def.ai !== 'heavy' && this.state !== 'attack' && this.state !== 'stun' && this.state !== 'fear') {
+    if (this.def.ai !== 'heavy' && this.id !== 'abbot' && this.state !== 'attack' && this.state !== 'stun' && this.state !== 'fear') {
       this.state = 'stagger'; this.timer = AI.stagger;
     }
   }
@@ -192,12 +193,16 @@ export class Monster {
       const far = ai === 'ranged' ? AI.archer.keepAway : AI.caster.keepAway;
       const clear = this.grid.lineClear(this.pos, player.pos);
       if (dist < far) {
+        // 退咗一陣都甩唔開（俾人逼入牆角）就照打
+        this.backing += dt;
+        if (this.backing > AI.archer.cornered) { this.backing = 0; this.state = 'attack'; this.timer = 0; this.struck = false; return false; }
         // 主角埋身就後退
         const k = Math.hypot(this.pos.x - player.pos.x, this.pos.z - player.pos.z) || 1;
         const to = { x: this.pos.x + (this.pos.x - player.pos.x) / k * 3, z: this.pos.z + (this.pos.z - player.pos.z) / k * 3 };
         this.replan(dt, to);
         return this.follow(dt, others, player);
       }
+      this.backing = 0;
       if (dist <= this.def.attackRange && clear) { this.state = 'attack'; this.timer = 0; this.struck = false; return false; }
     } else if (dist <= this.def.attackRange) {
       this.state = ai === 'heavy' ? 'windup' : 'attack';
@@ -283,9 +288,9 @@ export class Monster {
 
   /** 修士：定時召喚屍鬼、治療低血同伴 */
   private caster(dt: number, others: Monster[]) {
-    this.summonIn -= dt;
-    if (this.summonIn > 0) return;
-    this.summonIn = AI.caster.summonEvery;
+    this.casterIn -= dt;
+    if (this.casterIn > 0) return;
+    this.casterIn = AI.caster.summonEvery;
     const hurt = others.find(o => !o.dead && o !== this && o.hp < o.maxHp * 0.6 && o.pos.distanceTo(this.pos) < AI.caster.healRange);
     if (hurt) { hurt.heal(AI.caster.healAmount); this.ev.heal(hurt); } else this.ev.summon(this, AI.caster.summons);
   }

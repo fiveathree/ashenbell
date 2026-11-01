@@ -161,6 +161,21 @@ export class Ui {
     };
   }
 
+  /** 結局：淡入文字，最後「第一章 完」 */
+  ending(lines: string[], title: string, done: () => void) {
+    const el = this.screen(`<div class="opening" id="openBox"><p id="openLine"></p><small>撳一下繼續</small></div>`);
+    let i = 0;
+    $('openLine').textContent = lines[0];
+    el.onpointerdown = () => {
+      i++;
+      if (i < lines.length) { $('openLine').textContent = lines[i]; return; }
+      if (i === lines.length) {
+        el.innerHTML = `<div class="titlebox"><h1 style="font-size:calc(52*var(--u))">${title}</h1><button class="mbtn" id="endGo">繼續遊戲</button></div>`;
+        $('endGo').onclick = () => { el.onpointerdown = null; this.closeScreen(); done(); };
+      }
+    };
+  }
+
   menu(onExport: () => void, onImport: () => void, onTitle: () => void) {
     this.screen(`<div class="titlebox small"><h2>選單</h2>
       <button class="mbtn" id="mBack">返回遊戲</button>

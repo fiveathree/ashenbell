@@ -159,7 +159,7 @@ export class Level {
           : box(CELL, h, CELL / 6 + 0.02, s.x, h / 2, zc, 0.03));
       }
     };
-    steps(d.down, true);
+    if (d.down.c >= 0) steps(d.down, true);
     if (d.up.c >= 0) steps(d.up, false);
 
     // 傳送石：一塊立石
@@ -274,7 +274,8 @@ export class Level {
     if (d.tower) this.fires.push({ flame: null, light: new Vector3(d.tower.x + 2.6, 2.8, d.tower.z + 2.6), size: 0, power: 16, color: PALETTE.fire, radius: 8 });
     // 樓梯口有光，遠處都搵到
     const { down } = d;
-    this.fires.push({ flame: null, light: new Vector3(down.x, 1.3, down.z + 1.6), size: 0, power: 10, color: new Color(PALETTE.bone).getHex(), radius: 5 });
+    if (down.c >= 0) this.fires.push({ flame: null, light: new Vector3(down.x, 1.3, down.z + 1.6), size: 0, power: 10, color: new Color(PALETTE.bone).getHex(), radius: 5 });
+    for (const p of d.redLights ?? []) this.fires.push({ flame: null, light: new Vector3(p.x, 1.6, p.z), size: 0, power: 14, color: PALETTE.blood, radius: 9 });
   }
 
   /** 小鎮外牆變屋：木框、窗、門 */

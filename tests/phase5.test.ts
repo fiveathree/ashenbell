@@ -35,8 +35,25 @@ describe('主線任務', () => {
     const s = new Story();
     s.foundRelic();
     s.talkGe();
-    expect(s.stage).toBe(1);
+    expect(s.stage).toBe(2); // 唔會卡死
     expect(s.relic).toBe(true);
+  });
+});
+
+describe('任務唔會卡死', () => {
+  it('未接任務二就執齊日記，傾完直接到交日記', () => {
+    const s = new Story();
+    s.stage = 2; s.relic = true;
+    s.foundPage(0); s.foundPage(1); s.foundPage(2);
+    s.talkGe();
+    expect(s.stage).toBe(4);
+  });
+  it('未接任務三就打低 Boss，都去到結局', () => {
+    const s = new Story();
+    s.stage = 4; s.pages = [true, true, true];
+    s.beatBoss();
+    s.talkGe();
+    expect(s.stage).toBe(6);
   });
 });
 

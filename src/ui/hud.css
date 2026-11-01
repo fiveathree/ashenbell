@@ -56,3 +56,11 @@
 .slot.skill.off img{filter:grayscale(1) brightness(.45)}
 #drops{position:absolute;inset:0;overflow:hidden;pointer-events:none}
 .quest::after{content:attr(data-pts);display:block;color:#e8d84a;font-size:calc(12*var(--u));margin-top:calc(22*var(--u))}
+
+.bossbar{position:absolute;left:50%;top:calc(14*var(--u));transform:translateX(-50%);width:calc(640*var(--u));text-align:center}
+.bname{font-size:calc(19*var(--u));letter-spacing:.3em;color:#d4322a;text-shadow:0 1px 4px #000,0 0 calc(8*var(--u)) #000;margin-bottom:calc(4*var(--u))}
+.bbar{position:relative;height:calc(18*var(--u));background:#0b0807;border:1px solid var(--gold);box-shadow:0 0 calc(12*var(--u)) #000}
+.bbar i{display:block;height:100%;background:linear-gradient(180deg,#a51c14,#4e0808);transition:width .12s}
+.bbar b{position:absolute;top:0;bottom:0;width:1px;background:rgba(232,216,74,.7)}
+.bbar .m7{left:70%}.bbar .m35{left:35%}
+.bossline{position:absolute;left:50%;top:calc(90*var(--u));transform:translateX(-50%);max-width:calc(760*var(--u));text-align:center;font-size:calc(20*var(--u));letter-spacing:.1em;color:#e4d8bf;text-shadow:0 1px 4px #000,0 0 calc(10*var(--u)) #000}

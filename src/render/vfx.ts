@@ -98,8 +98,8 @@ export class Vfx {
   }
 
   /** 擴散嘅光環：戰吼、衝鋒落地 */
-  ring(x: number, z: number, radius: number, color: Color | number = EMBER) {
-    this.add(unitPlane(), x, 0.08, z, 0, { mat: softMat(new Color(color), [0.8, 1], 0, 0, 0.3), life: 0.5, peak: 0.3, grow: radius });
+  ring(x: number, z: number, radius: number, color: Color | number = EMBER, life = 0.5) {
+    this.add(unitPlane(), x, 0.08, z, 0, { mat: softMat(new Color(color), [0.8, 1], 0, 0, 0.3), life, peak: 0.3, grow: radius });
   }
 
   /** 巨屍重擊預警：紅圈由外向內收 */

@@ -36,6 +36,6 @@ describe('出怪表', () => {
   });
 
   it('六種怪物都有數值', () => {
-    expect(Object.keys(MONSTERS).length).toBe(6);
+    expect(Object.keys(MONSTERS).filter(k => k !== 'abbot').length).toBe(6);
   });
 });

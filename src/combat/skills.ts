@@ -64,7 +64,8 @@ export class Skills {
       let n = 0;
       for (const t of this.inRadius(s.radius)) {
         const a = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z);
-        if (Math.abs(clampAngle(a - yaw)) > half) continue;
+        const close = Math.hypot(t.pos.x - p.pos.x, t.pos.z - p.pos.z) < s.pointBlank;
+        if (!close && Math.abs(clampAngle(a - yaw)) > half) continue;
         p.damage(t, s.mult + s.perLevel * this.lv('heavy')); n++;
       }
       // 灰燼之誓：留下燃燒地面

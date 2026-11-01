@@ -9,6 +9,8 @@ const html = `
   <div class="mini"><canvas id="mini" width="220" height="220"></canvas><div class="floorname" id="floorName"></div></div>
   <canvas class="bigmap" id="bigmap" width="1100" height="700" hidden></canvas>
   <div class="loading" id="lvLoad" hidden><h2 id="lvName"></h2></div>
+  <div class="bossbar" id="bossBar" hidden><div class="bname" id="bossName"></div><div class="bbar"><i id="bossFill"></i><b class="m7"></b><b class="m35"></b></div></div>
+  <div class="bossline" id="bossLine" hidden></div>
   <div class="target" id="target" hidden><div class="tname" id="tname"></div><div class="tbar"><i id="tfill"></i></div></div>
   <div class="dock">
     <div class="orb hp" title="生命"><i id="hpFill"></i><span id="hpText"></span></div>
@@ -46,6 +48,17 @@ export class Hud {
       el.classList.toggle('off', !s.ready(id) && !(def.cooldown && left > 0));
       el.classList.toggle('on', (id === 'whirl' && s.whirling) || (id === 'roar' && buff > 0));
     }
+  }
+
+  bossBar(b: { name: string; hp: number; maxHp: number } | null) {
+    $('bossBar').hidden = !b;
+    if (!b) return;
+    $('bossName').textContent = b.name;
+    $('bossFill').style.width = `${b.hp / b.maxHp * 100}%`;
+  }
+  bossLine(t: string | null) {
+    $('bossLine').hidden = !t;
+    if (t) $('bossLine').textContent = t;
   }
 
   gold(n: number) { $('gold').textContent = String(n); }

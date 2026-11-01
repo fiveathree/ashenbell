@@ -2,6 +2,7 @@
 import { CELL, GEN, THEMES } from '../data/dungeon';
 import { mulberry32, randInt, type Rng } from '../core/rng';
 import { navGrid } from './nav';
+import { BOSS } from '../data/boss';
 import { ELITE, FLOOR_TABLE, type EliteTrait, type MonsterId } from '../data/monsters';
 
 export const T = { WALL: 0, FLOOR: 1, WATER: 2, DOWN: 3, UP: 4 } as const;
@@ -21,7 +22,7 @@ export interface Dungeon {
   down: Stairs; up: Stairs;
   torches: TorchSpot[]; props: Prop[]; pillars: Pillar[];
   spawns: Spawn[]; altars: Pos[]; chests: Pos[];
-  waystone: Pos; relic?: Pos; pages?: Pos[]; tower?: Pos;
+  waystone: Pos; relic?: Pos; pages?: Pos[]; tower?: Pos; redLights?: Pos[];
 }
 
 function pickType(rng: Rng, floor: number) {
@@ -241,6 +242,25 @@ export function townDungeon(): Dungeon {
     seed: 0, floor: -1, cols, rows, tiles, rooms: [room], down: gate, up: { c: -1, r: -1, x: -9, z: -9 },
     torches, props, pillars: [], spawns: [], altars: [], chests: [],
     waystone: { x: gate.x + 4.2, z: gate.z + 3.4 }, tower: { x: 30, z: 27 },
+  };
+}
+
+/** 院長之室：獨立 Boss 房，四條高柱用嚟避鐘聲 */
+export function bossDungeon(): Dungeon {
+  const cols = 30, rows = 30, tiles: number[] = new Array(cols * rows).fill(T.WALL);
+  const room: Room = { x: 7, y: 7, w: 15, h: 15, kind: 'exit' };
+  for (let r = room.y; r < room.y + room.h; r++) for (let c = room.x; c < room.x + room.w; c++) tiles[r * cols + c] = T.FLOOR;
+  const up = { c: 14, r: 6, ...world(14, 6) };
+  tiles[up.r * cols + up.c] = T.UP;
+  const torches: TorchSpot[] = [];
+  for (const c of [9, 19]) torches.push({ x: (c + 0.5) * CELL, z: room.y * CELL, dx: 0, dz: 1 });
+  for (const r of [10, 18]) torches.push({ x: room.x * CELL, z: (r + 0.5) * CELL, dx: 1, dz: 0 });
+  const pillars: Pillar[] = [[20, 20], [38, 20], [20, 38], [38, 38]].map(([x, z]) => ({ x, z, h: 3.8 }));
+  return {
+    seed: 0, floor: 3, cols, rows, tiles, rooms: [room], up, down: { c: -1, r: -1, x: -9, z: -9 },
+    torches, props: [], pillars, altars: [], chests: [],
+    spawns: [{ x: 29, z: 32, type: 'abbot', level: BOSS.level, traits: [] }],
+    waystone: { x: up.x - 3.4, z: up.z + 3.4 }, redLights: [{ x: 29, z: 29 }, { x: 20, z: 29 }, { x: 38, z: 29 }],
   };
 }
 

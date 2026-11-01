@@ -95,7 +95,7 @@ export const LEVELING = {
   statPoints: 5,
   skillPoints: 1,
   skillMax: 5,
-  monsterXp: { ghoul: 7, skeleton: 11, archer: 10, drowned: 12, monk: 15, brute: 40 } as Record<string, number>,
-  xpPerMonsterLevel: 0.5,
+  monsterXp: { ghoul: 7, skeleton: 11, archer: 10, drowned: 12, monk: 15, brute: 40, abbot: 120 } as Record<string, number>,
+  xpPerMonsterLevel: 0.8,
   eliteXp: 3,
 };

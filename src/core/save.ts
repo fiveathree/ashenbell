@@ -19,14 +19,14 @@ export interface WorldState {
 export interface SaveData {
   v: number;
   hero: Pick<Hero, 'level' | 'xp' | 'str' | 'dex' | 'vit' | 'statPoints' | 'skillPoints' | 'skills' | 'gold' | 'potions' | 'bag' | 'equip'>;
-  story: Pick<Story, 'stage' | 'relic' | 'pages' | 'seenOpening'>;
+  story: Pick<Story, 'stage' | 'relic' | 'pages' | 'seenOpening' | 'boss'>;
   world: WorldState;
 }
 
 export function pack(hero: Hero, story: Story, world: WorldState): SaveData {
   const { level, xp, str, dex, vit, statPoints, skillPoints, skills, gold, potions, bag, equip } = hero;
-  const { stage, relic, pages, seenOpening } = story;
-  return { v: VERSION, hero: { level, xp, str, dex, vit, statPoints, skillPoints, skills, gold, potions, bag, equip }, story: { stage, relic, pages, seenOpening }, world };
+  const { stage, relic, pages, seenOpening, boss } = story;
+  return { v: VERSION, hero: { level, xp, str, dex, vit, statPoints, skillPoints, skills, gold, potions, bag, equip }, story: { stage, relic, pages, seenOpening, boss }, world };
 }
 
 /** 檢查格式；錯就回傳 null，唔會整壞現有進度 */

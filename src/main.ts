@@ -30,7 +30,9 @@ import { DROP, LEVELING, type LegendId, type Rarity } from './data/items';
 import { MiniMap } from './ui/minimap';
 import { HERO, NAV } from './data/combat';
 import { BREAK, CELL, placeName, THEMES } from './data/dungeon';
-import { generate, townDungeon, type Stairs } from './world/dungeon';
+import { bossDungeon, generate, townDungeon, type Stairs } from './world/dungeon';
+import { Boss } from './entities/boss';
+import { BOSS, ENDING } from './data/boss';
 import { Breakable, Level } from './world/level';
 import { navGrid } from './world/nav';
 
@@ -84,7 +86,7 @@ async function start() {
   const panels = new Panels(hero, () => player.refresh(), () => player.refresh());
   const ui = new Ui(hero, () => { player.refresh(); panels.render(); hud.gold(hero.gold); });
   let level: Level | null = null as Level | null, monsters: Monster[] = [], kills = 0, changing = true, stairsGoal: Stairs | null = null;
-  let talkGoal: Npc | null = null, stoneGoal = false;
+  let talkGoal: Npc | null = null, stoneGoal = false, lineLeft = 0;
   const lv = () => level!;
 
   const encodeExplored = () => {
@@ -104,7 +106,9 @@ async function start() {
   };
 
   const newMonster = (type: MonsterId, x: number, z: number, mLevel: number, traits: EliteTrait[] = []) => {
-    const m = new Monster(scene, player.gltf, lv().grid, type, x, z, mLevel, traits, quality.ghoulShadows, events);
+    const m = type === 'abbot'
+      ? new Boss(scene, player.gltf, lv().grid, x, z, mLevel, quality.shadows, events, vfx, { line: t => { hud.bossLine(t); lineLeft = BOSS.lineTime; } })
+      : new Monster(scene, player.gltf, lv().grid, type, x, z, mLevel, traits, quality.ghoulShadows, events);
     monsters.push(m);
     return m;
   };
@@ -117,6 +121,7 @@ async function start() {
     died(m) {
       vfx.blood(m.pos.x, m.pos.z, m.def.blood);
       reward(m);
+      if (m instanceof Boss) bossDown(m);
       if (m.index >= 0) (world.cleared[lv().d.floor] ??= []).push(m.index);
       if (m.traits.includes('split')) {
         for (let i = 0; i < ELITE.traits.split.spawns!; i++) newMonster('ghoul', m.pos.x + (i ? 0.7 : -0.7), m.pos.z, 4).state = 'chase';
@@ -154,6 +159,16 @@ async function start() {
     if (loot.item) { const p = at(0); field.add(p.x, p.z, loot.item, 0, null); }
     if (loot.gold) { const p = at(1); field.add(p.x, p.z, null, loot.gold, null); }
     if (loot.potion) { const p = at(2); field.add(p.x, p.z, null, 0, loot.potion); }
+  };
+  /** 院長倒下：必掉 1 傳奇 + 2 稀有 */
+  const bossDown = (m: Monster) => {
+    story.beatBoss();
+    const k = BOSS.drops, spot = (i: number) => lv().grid.nearestFree(m.pos.x + Math.cos(i * 1.3) * 2.2, m.pos.z + Math.sin(i * 1.3) * 2.2) ?? m.pos;
+    let i = 3;
+    for (let n = 0; n < k.legends; n++) { const p = spot(i++); field.add(p.x, p.z, makeItem(Math.random, BOSS.level, 'legend'), 0, null); }
+    for (let n = 0; n < k.rares; n++) { const p = spot(i++); field.add(p.x, p.z, makeItem(Math.random, BOSS.level, 'rare'), 0, null); }
+    const p = spot(i); field.add(p.x, p.z, null, k.goldPerLevel * BOSS.level, null);
+    save();
   };
   const pickup = (d: Drop) => {
     if (d.story) {
@@ -195,7 +210,7 @@ async function start() {
     if (level) { level.dispose(); monsters.forEach(g => g.remove()); vfx.clear(); field.clear(); pickGoal = null; }
     npcs.forEach(n => n.remove()); npcs = [];
     await new Promise(r => setTimeout(r, 30));
-    const d = floor < 0 ? townDungeon() : generate(world.seed, floor);
+    const d = floor < 0 ? townDungeon() : floor === 3 ? bossDungeon() : generate(world.seed, floor);
     level = await new Level(scene, d, aniso, quality.shadows, smash, world.broken[floor]).build();
     player.grid = lv().grid;
     pool.set(lv().fires);
@@ -204,6 +219,7 @@ async function start() {
     d.spawns.forEach((s, i) => { if (!dead.includes(i)) newMonster(s.type, s.x, s.z, s.level, s.traits).index = i; });
     if (floor < 0) npcs = (Object.keys(NPCS) as NpcId[]).map(id => new Npc(scene, player.gltf, id));
     if (d.relic && !story.relic) field.addStory(d.relic.x, d.relic.z, '失蹤者遺物', { kind: 'relic', i: 0 });
+    (monsters.find(m => m instanceof Boss) as Boss | undefined)?.start();
     d.pages?.forEach((p, i) => { if (!story.pages[i]) field.addStory(p.x, p.z, `院長日記 第 ${i + 1} 頁`, { kind: 'page', i }); });
     const s = arrive === 'up' && floor >= 0 ? d.up : d.down;
     player.place(s.x, s.z + CELL);
@@ -248,7 +264,7 @@ async function start() {
     ray.setFromCamera(mouse, camera);
     if (!ray.ray.intersectPlane(floorPlane, hitPt)) return null;
     const d = lv().d;
-    if (stairsNear(d.down, hitPt.x, hitPt.z)) return d.down;
+    if (d.down.c >= 0 && stairsNear(d.down, hitPt.x, hitPt.z)) return d.down;
     if (d.up.c >= 0 && stairsNear(d.up, hitPt.x, hitPt.z)) return d.up;
     return null;
   };
@@ -264,10 +280,15 @@ async function start() {
     return Math.hypot(hitPt.x - w.x, hitPt.z - w.z) < 1;
   };
   const talk = (n: Npc) => {
-    if (n.id === 'ge') { ui.dialog(n.name, 'ge', story.talkGe()); save(); return; }
+    if (n.id === 'ge') {
+      const ending = story.stage === 6, lines = story.talkGe();
+      ui.dialog(n.name, 'ge', lines, ending ? [{ label: '收低呢頁', fn: () => ui.ending(ENDING.lines, ENDING.title, save) }] : []);
+      save();
+      return;
+    }
     const mode = n.id === 'dala' ? 'smith' : 'herb';
     const open = () => { ui.openShop(mode, Math.random); if (!panels.invOpen) panels.toggle('inv'); };
-    ui.dialog(n.name, n.id, [n.id === 'dala' ? DALA_TALK : HERB_TALK], [{ label: '買賣', fn: open }, { label: '離開', fn: () => {} }]);
+    ui.dialog(n.name, n.id, [story.finished ? ENDING.after[n.id] : n.id === 'dala' ? DALA_TALK : HERB_TALK], [{ label: '買賣', fn: open }, { label: '離開', fn: () => {} }]);
   };
   const travel = () => {
     const here = lv().d.floor;
@@ -298,6 +319,9 @@ async function start() {
     }
   };
   const aimPoint = () => {
+    // 指住怪就瞄佢本人：滑鼠射線打落地面會落喺怪物後面，貼身時方向會錯
+    const t = lv().d.floor >= 0 ? pick() : null;
+    if (t) return { x: t.pos.x, z: t.pos.z };
     ray.setFromCamera(mouse, camera);
     ray.ray.intersectPlane(floorPlane, hitPt);
     return { x: hitPt.x, z: hitPt.z };
@@ -385,6 +409,7 @@ async function start() {
     if (!changing && level) {
       player.speedMul = level.isWater(player.pos.x, player.pos.z) ? level.theme.speedInWater : 1;
       npcs.forEach(n => n.update(dt));
+      if (lineLeft > 0) { lineLeft -= dt; if (lineLeft <= 0) hud.bossLine(null); }
       player.update(dt);
       skills.update(dt);
       for (const g of [...monsters]) {
@@ -425,10 +450,12 @@ async function start() {
     if (!changing && level) {
       const d = level.d, town = d.floor < 0;
       const hover = town ? null : pick(), npc = pickNpc(), stone = !npc && pickStone(), st = hover || npc || stone ? null : pickStairs();
-      hud.target(hover ? (hover instanceof Monster ? { name: hover.name, hp: hover.hp, maxHp: hover.maxHp, elite: hover.elite } : { name: hover.name })
+      hud.target(hover instanceof Boss ? null : hover ? (hover instanceof Monster ? { name: hover.name, hp: hover.hp, maxHp: hover.maxHp, elite: hover.elite } : { name: hover.name })
         : npc ? { name: npc.name } : stone ? { name: '傳送石' }
-          : st ? { name: st === d.down ? (town ? '修道院大門：入地窖' : d.floor < 2 ? '落去下一層' : '封印之井最深處') : (d.floor > 0 ? '返上一層' : '返回荒鐘鎮') } : null);
+          : st ? { name: st === d.down ? (town ? '修道院大門：入地窖' : d.floor < 2 ? '落去下一層' : '落去院長之室') : (d.floor > 0 ? '返上一層' : '返回荒鐘鎮') } : null);
     }
+    const boss = monsters.find(m => m instanceof Boss && !m.dead);
+    hud.bossBar(boss ? { name: boss.name, hp: boss.hp, maxHp: boss.maxHp } : null);
     hud.progress(hero.xp, hero.level >= LEVELING.max ? 0 : xpToNext(hero.level), hero.potions.hp, hero.potions.rage, hero.statPoints + hero.skillPoints);
     hud.update(Math.round(player.hp), player.maxHp, player.rage, HERO.rageMax, story.stage === 3 ? `${story.questText}（${story.pagesFound}/3）` : story.questText, player.dead);
     focus.x += (fp.x - focus.x) * Math.min(1, CAMERA.followLerp * dt);
