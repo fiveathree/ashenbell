@@ -37,6 +37,7 @@ export const AI = {
   separation: 0.9,
   corpseTime: 0.9, // 倒地動作完就消失，唔做半透明淡出（會閃）
   levelHp: 0.28,
+  levelFloor: 3, // 3 級或以下唔加數值，第 1 層唔會一開波就打唔過
   levelDamage: 0.16,
   flee: { below: 0.25, chance: 0.3, time: 2.5 },
   archer: { keepAway: 4, ideal: 7, arrowSpeed: 11, cornered: 1.2 },
@@ -54,8 +55,8 @@ export const FLOOR_TABLE: Partial<Record<MonsterId, number>>[] = [
 ];
 
 export const ELITE = {
-  hpMult: 2.4,
-  damageMult: 1.35,
+  hpMult: 2,
+  damageMult: 1.2,
   scaleMult: 1.1,
   traits: {
     haste: { name: '迅捷', speed: 1.5, attack: 0.7 },

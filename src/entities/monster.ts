@@ -65,8 +65,9 @@ export class Monster {
     this.traits = traits;
     const elite = traits.length > 0;
     this.armor = def.armor;
-    this.maxHp = this.hp = Math.round(def.hp * (1 + AI.levelHp * (level - 1)) * (elite ? ELITE.hpMult : 1));
-    this.dmgMult = (1 + AI.levelDamage * (level - 1)) * (elite ? ELITE.damageMult : 1) * (traits.includes('fire') ? ELITE.traits.fire.damage! : 1);
+    const up = Math.max(0, level - AI.levelFloor);
+    this.maxHp = this.hp = Math.round(def.hp * (1 + AI.levelHp * up) * (elite ? ELITE.hpMult : 1));
+    this.dmgMult = (1 + AI.levelDamage * up) * (elite ? ELITE.damageMult : 1) * (traits.includes('fire') ? ELITE.traits.fire.damage! : 1);
     this.speed = def.speed * (traits.includes('haste') ? ELITE.traits.haste.speed! : 1);
     this.attackTime = def.attackTime * (traits.includes('haste') ? ELITE.traits.haste.attack! : 1);
     this.name = elite ? `${traits.map(t => ELITE.traits[t].name).join('・')} ${def.name}` : def.name;
