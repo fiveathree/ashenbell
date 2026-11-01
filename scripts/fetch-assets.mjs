@@ -10,6 +10,7 @@ const TEXTURES = {
   crypt_floor: 'monastery_stone_floor', crypt_wall: 'castle_wall_slates',
   chapel_floor: 'mossy_cobblestone', chapel_wall: 'mossy_stone_wall',
   well_floor: 'stone_tiles_02', well_wall: 'rock_wall_08',
+  town_floor: 'cobblestone_floor_04', town_wall: 'plastered_stone_wall', town_wood: 'medieval_wood',
 };
 const MODELS = ['wooden_crate_01', 'treasure_chest', 'wooden_candlestick', 'Lantern_01', 'wine_barrel_01', 'wooden_bucket_01'];
 const HEAVY = ['wooden_candlestick', 'treasure_chest', 'wooden_bucket_01'];

@@ -21,6 +21,8 @@ export function navGrid(d: Dungeon) {
     ...d.pillars.map(p => ({ x: p.x, z: p.z, r: PILLAR_RADIUS })),
     ...d.chests.map(p => ({ x: p.x, z: p.z, r: CHEST_RADIUS })),
     ...d.altars.map(p => ({ x: p.x, z: p.z - 0.5, r: 1.4 })),
+    { x: d.waystone.x, z: d.waystone.z, r: 0.6 },
+    ...(d.tower ? [{ x: d.tower.x, z: d.tower.z, r: 2.5 }] : []),
   ];
   for (const s of solids) g.stampCircle(s, NAV.heroRadius);
   g.freeze();

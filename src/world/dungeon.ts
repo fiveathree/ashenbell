@@ -21,6 +21,7 @@ export interface Dungeon {
   down: Stairs; up: Stairs;
   torches: TorchSpot[]; props: Prop[]; pillars: Pillar[];
   spawns: Spawn[]; altars: Pos[]; chests: Pos[];
+  waystone: Pos; relic?: Pos; pages?: Pos[]; tower?: Pos;
 }
 
 function pickType(rng: Rng, floor: number) {
@@ -202,7 +203,17 @@ function tryGenerate(rng: Rng, seed: number, floor: number): Dungeon | null {
       }
     }
   }
-  const d: Dungeon = { seed, floor, cols, rows, tiles, rooms, down, up, torches, props, pillars, spawns, altars, chests };
+  // 傳送石喺入口樓梯旁邊；劇情物喺指定房
+  const waystone = { x: up.x + CELL * 1.2, z: up.z + CELL * 1.8 };
+  const relicRoom = rooms[exitI];
+  const relic = floor === 0 ? { ...world(relicRoom.x + 1, relicRoom.y + relicRoom.h - 2) } : undefined;
+  const pageRooms = rooms.filter(o => o.kind === 'normal' || o.kind === 'chest');
+  const pages = floor === 1 ? [0, 1, 2].map(i => {
+    const o = pageRooms[Math.floor(i * pageRooms.length / 3)];
+    return world(o.x + o.w - 2, o.y + o.h - 2);
+  }) : undefined;
+  if (floor === 1 && pageRooms.length < 3) return null;
+  const d: Dungeon = { seed, floor, cols, rows, tiles, rooms, down, up, torches, props, pillars, spawns, altars, chests, waystone, relic, pages };
   // 擺完嘢之後確認每間房都行得到，唔通就成張圖重嚟
   const g = navGrid(d), from = { x: up.x, z: up.z + CELL };
   for (const o of rooms) {
@@ -210,6 +221,27 @@ function tryGenerate(rng: Rng, seed: number, floor: number): Dungeon | null {
     if (!last || Math.hypot(last.x - to.x, last.z - to.z) > 3) return null;
   }
   return g.findPath(from, { x: down.x, z: down.z + CELL }).length ? d : null;
+}
+
+/** 荒鐘鎮：一個細廣場，上面係修道院大門。用同地城一樣嘅資料格式。 */
+export function townDungeon(): Dungeon {
+  const cols = 30, rows = 30, tiles: number[] = new Array(cols * rows).fill(T.WALL);
+  const room: Room = { x: 6, y: 6, w: 18, h: 16, kind: 'entry' };
+  for (let r = room.y; r < room.y + room.h; r++) for (let c = room.x; c < room.x + room.w; c++) tiles[r * cols + c] = T.FLOOR;
+  const gate = { c: 12, r: 5, ...world(12, 5) };
+  tiles[gate.r * cols + gate.c] = T.DOWN;
+  const torches: TorchSpot[] = [];
+  for (const c of [8, 16, 20]) torches.push({ x: (c + 0.5) * CELL, z: room.y * CELL, dx: 0, dz: 1 });
+  for (const r of [9, 14, 18]) torches.push({ x: room.x * CELL, z: (r + 0.5) * CELL, dx: 1, dz: 0 });
+  const props: Prop[] = [
+    { x: 15.5, z: 13.4, kind: 'barrel', rot: 0.4, scale: 1.2 }, { x: 16.8, z: 14.2, kind: 'crate', rot: 1, scale: 1.2 },
+    { x: 13.5, z: 30, kind: 'barrel', rot: 2, scale: 1.3 }, { x: 13.4, z: 31.6, kind: 'bucket', rot: 1, scale: 1.2 },
+  ];
+  return {
+    seed: 0, floor: -1, cols, rows, tiles, rooms: [room], down: gate, up: { c: -1, r: -1, x: -9, z: -9 },
+    torches, props, pillars: [], spawns: [], altars: [], chests: [],
+    waystone: { x: gate.x + 4.2, z: gate.z + 3.4 }, tower: { x: 30, z: 27 },
+  };
 }
 
 export function generate(seed: number, floor: number): Dungeon {

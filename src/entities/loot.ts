@@ -7,6 +7,7 @@ import type { Item } from '../items/item';
 export interface Drop {
   x: number; z: number; item: Item | null; gold: number; potion: 'hp' | 'rage' | null;
   label: HTMLDivElement; glow: Mesh; beam: Mesh | null;
+  story?: { kind: 'relic' | 'page'; i: number };
 }
 
 const POTION = { hp: '生命藥水', rage: '怒氣藥水' };
@@ -39,12 +40,19 @@ export class LootField {
     document.getElementById('hud')!.prepend(this.root);
   }
 
-  add(x: number, z: number, item: Item | null, gold: number, potion: 'hp' | 'rage' | null) {
+  /** 劇情物：遺物、日記 */
+  addStory(x: number, z: number, name: string, story: { kind: 'relic' | 'page'; i: number }) {
+    const d = this.add(x, z, null, 0, null, name);
+    d.story = story;
+    return d;
+  }
+
+  add(x: number, z: number, item: Item | null, gold: number, potion: 'hp' | 'rage' | null, title?: string) {
     const color = item ? RARITY[item.rarity].color : gold ? '#e8d84a' : '#c8b89a';
     const label = document.createElement('div');
     label.className = 'drop';
     label.style.color = color;
-    label.textContent = item ? item.name : gold ? `${gold} 金幣` : POTION[potion!];
+    label.textContent = title ?? (item ? item.name : gold ? `${gold} 金幣` : POTION[potion!]);
     const d: Drop = { x, z, item, gold, potion, label, glow: null!, beam: null };
     label.addEventListener('pointerdown', e => { e.stopPropagation(); this.onClick?.(d); });
     this.root.appendChild(label);
@@ -81,7 +89,7 @@ export class LootField {
         (d.beam.material as ShaderMaterial).uniforms.op.value = 0.6 + Math.sin(t * 3) * 0.12;
       }
       const normal = d.item ? d.item.rarity !== 'white' : d.gold > 0;
-      const vis = !hide && (normal || d.potion !== null || this.showAll);
+      const vis = !hide && (normal || d.potion !== null || d.story !== undefined || this.showAll);
       v.set(d.x, 0.2, d.z).project(camera);
       if (!vis || v.z > 1) { d.label.style.display = 'none'; continue; }
       let x = (v.x + 1) / 2 * innerWidth, y = (1 - v.y) / 2 * innerHeight;

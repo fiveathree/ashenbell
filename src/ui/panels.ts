@@ -39,6 +39,7 @@ const iconUrl = (it: Item) => `assets/icons/${it.icon}.webp`;
 export class Panels {
   invOpen = false;
   charOpen = false;
+  sellHook: ((it: Item) => boolean) | null = null;
   private drag: { item: Item; from: EquipSlot | null; el: HTMLElement; ox: number; oy: number } | null = null;
 
   constructor(private h: Hero, private changed: () => void, private spentSkill: () => void) {
@@ -161,7 +162,8 @@ export class Panels {
   private quick(e: Event) {
     const hit = this.itemAt(e);
     if (!hit) return;
-    if (hit.slot) this.h.takeOff(hit.slot); else this.h.wear(hit.item);
+    if (hit.slot) this.h.takeOff(hit.slot);
+    else if (!this.sellHook?.(hit.item)) this.h.wear(hit.item);
     this.tip(null);
     this.changed(); this.render();
   }

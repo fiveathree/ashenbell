@@ -1,0 +1,29 @@
+.talk{position:absolute;left:50%;bottom:calc(136*var(--u));transform:translateX(-50%);width:calc(680*var(--u));height:calc(150*var(--u));display:flex;gap:calc(12*var(--u));padding:calc(10*var(--u));box-sizing:border-box;pointer-events:auto;cursor:pointer;
+  border:1px solid var(--gold);background:radial-gradient(120% 120% at 20% 0,#241a12,#0d0906 72%);box-shadow:0 0 calc(22*var(--u)) #000}
+.talk img{height:100%;aspect-ratio:1;object-fit:cover;border:1px solid #4a3a1c;flex:none}
+.talkbody{flex:1;min-width:0;display:flex;flex-direction:column}
+.talkbody h4{margin:0 0 calc(4*var(--u));font-size:calc(15*var(--u));letter-spacing:.14em;color:#d2b467}
+.talkbody p{margin:0;flex:1;font-size:calc(15.5*var(--u));line-height:1.6;color:#e4d8bf}
+.opts{display:flex;gap:calc(8*var(--u));height:calc(30*var(--u));justify-content:flex-end}
+.mbtn{pointer-events:auto;cursor:pointer;font:400 calc(14*var(--u)) "Noto Serif TC",serif;letter-spacing:.14em;color:#e4d8bf;background:linear-gradient(180deg,#2c2013,#17100a);border:1px solid var(--gold);padding:calc(4*var(--u)) calc(16*var(--u))}
+.mbtn:hover:not(:disabled){background:linear-gradient(180deg,#4a3519,#2a1c0e);color:#fff}
+.mbtn:disabled{opacity:.35;cursor:default}
+.shopbody{flex:1;min-height:0;display:flex;flex-direction:column;gap:calc(3*var(--u));overflow:hidden}
+.srow{flex:none;display:flex;align-items:center;gap:calc(8*var(--u));height:calc(38*var(--u));font-size:calc(14*var(--u));border-bottom:1px solid #2a2012}
+.srow img{width:calc(32*var(--u));height:calc(32*var(--u));object-fit:cover;border:1px solid #4a3a1c}
+.srow span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sbtn{pointer-events:auto;cursor:pointer;font:400 calc(12.5*var(--u)) "Noto Serif TC",serif;min-width:calc(64*var(--u));height:calc(26*var(--u));color:#e8d84a;background:#2a1e10;border:1px solid var(--gold)}
+.sbtn:disabled{opacity:.35;cursor:default}
+.sbtn.back{align-self:flex-start;margin-top:calc(6*var(--u));color:#e4d8bf}
+.none,.shophint{margin:0;font-size:calc(12*var(--u));color:#8d7a58}
+#shopClose{align-self:flex-end}
+.screen{position:absolute;inset:0;z-index:20;pointer-events:auto;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#1e1008,#070504 78%)}
+.titlebox{width:calc(320*var(--u));display:flex;flex-direction:column;gap:calc(10*var(--u));text-align:center}
+.titlebox h1{margin:0;font-size:calc(72*var(--u));font-weight:700;letter-spacing:.3em;text-indent:.3em;color:#c8b89a;text-shadow:0 0 calc(26*var(--u)) #8a1010}
+.titlebox h2{margin:0 0 calc(18*var(--u));font:600 calc(16*var(--u)) "Cinzel",serif;letter-spacing:.5em;text-indent:.5em;color:#8d7a58}
+.titlebox.small h2{font:700 calc(24*var(--u)) "Noto Serif TC",serif;letter-spacing:.3em;color:#d2b467}
+.titlebox p{min-height:calc(20*var(--u));margin:0;font-size:calc(13*var(--u));color:#d4544a}
+.opening{width:calc(760*var(--u));text-align:center;cursor:pointer}
+.opening p{margin:0;min-height:calc(80*var(--u));font-size:calc(26*var(--u));line-height:1.7;letter-spacing:.1em;color:#c8b89a;animation:lvfadein 1.2s}
+.opening small{display:block;margin-top:calc(26*var(--u));color:#6e6048;font-size:calc(12*var(--u));letter-spacing:.2em}
+@keyframes lvfadein{from{opacity:.2}to{opacity:1}}

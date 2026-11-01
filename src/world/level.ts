@@ -7,7 +7,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { box, darkenTops, worldUV } from '../render/geo';
 import type { Fire } from '../render/torch';
 import { LIGHT, PALETTE } from '../data/art';
-import { CELL, THEMES, WALL, type Theme } from '../data/dungeon';
+import { CELL, themeOf, WALL, type Theme } from '../data/dungeon';
 import { NAV } from '../data/combat';
 import { T, type Dungeon, type Prop } from './dungeon';
 import { navGrid, PROP_RADIUS } from './nav';
@@ -62,13 +62,29 @@ const runeMat = new ShaderMaterial({
     }`,
 });
 
+/** 屋窗：暗木窗格後面有微弱燭光，唔係平面色塊 */
+const windowMat = new ShaderMaterial({
+  side: 2,
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: /* glsl */ `
+    varying vec2 vUv;
+    void main(){
+      vec2 p=fract(vUv*vec2(2.,3.));
+      float bar=step(.1,p.x)*step(p.x,.9)*step(.1,p.y)*step(p.y,.9);
+      float edge=step(.05,vUv.x)*step(vUv.x,.95)*step(.04,vUv.y)*step(vUv.y,.96);
+      float r=length((vUv-vec2(.5,.35))*vec2(1.2,1.));
+      vec3 c=mix(vec3(.5,.2,.05),vec3(.05,.02,.008),smoothstep(.05,.62,r));
+      gl_FragColor=vec4(mix(vec3(.012,.008,.005),c,bar*edge),1.);
+    }`,
+});
+
 /** 可打破道具：主角撳佢會打，打爛可能掉金幣 */
 export class Breakable {
   dead = false;
   armor = 0;
   name: string;
   pos: Vector3;
-  constructor(public model: Object3D, public data: Prop, private onBreak: (b: Breakable) => void) {
+  constructor(public model: Object3D, public data: Prop, public index: number, private onBreak: (b: Breakable) => void) {
     this.name = NAME[data.kind];
     this.pos = new Vector3(data.x, 0, data.z);
   }
@@ -83,8 +99,8 @@ export class Level {
   theme: Theme;
   private water: Mesh | null = null;
 
-  constructor(private scene: Scene, public d: Dungeon, private aniso: number, private shadows: boolean, private onBreak: (b: Breakable) => void) {
-    this.theme = THEMES[d.floor];
+  constructor(private scene: Scene, public d: Dungeon, private aniso: number, private shadows: boolean, private onBreak: (b: Breakable) => void, private broken: number[] = []) {
+    this.theme = themeOf(d.floor);
   }
 
   tile(c: number, r: number) {
@@ -143,7 +159,27 @@ export class Level {
           : box(CELL, h, CELL / 6 + 0.02, s.x, h / 2, zc, 0.03));
       }
     };
-    steps(d.down, true); steps(d.up, false);
+    steps(d.down, true);
+    if (d.up.c >= 0) steps(d.up, false);
+
+    // 傳送石：一塊立石
+    { const w = d.waystone, c = Math.floor(w.x / CELL), r = Math.floor(w.z / CELL);
+      push(walls, c, r, box(0.9, 2.5, 0.55, w.x, 1.25, w.z, 0.08));
+      push(walls, c, r, box(1.3, 0.3, 1, w.x, 0.15, w.z, 0.06)); }
+
+    if (d.tower) {
+      const t = d.tower, c = Math.floor(t.x / CELL), r = Math.floor(t.z / CELL);
+      push(walls, c, r, box(3.8, 3.2 * 3, 3.8, t.x, 4.8, t.z, 0.1));
+      push(walls, c, r, box(4.4, 0.5, 4.4, t.x, 0.25, t.z, 0.08));
+      push(walls, c, r, box(4.3, 0.4, 4.3, t.x, 6.2, t.z, 0.08));
+    }
+    if (d.floor < 0) {
+      // 修道院大門：兩條門柱加門楣
+      const g = d.down;
+      push(walls, g.c, g.r, box(0.9, 5.4, 0.9, g.x - 1.5, 2.7, g.z + 1, 0.07));
+      push(walls, g.c, g.r, box(0.9, 5.4, 0.9, g.x + 1.5, 2.7, g.z + 1, 0.07));
+      push(walls, g.c, g.r, box(4.2, 0.8, 1.1, g.x, 5.4, g.z + 1, 0.07));
+    }
 
     for (const p of d.pillars) {
       push(walls, Math.floor(p.x / CELL), Math.floor(p.z / CELL), box(1, p.h, 1, p.x, p.h / 2, p.z, 0.07));
@@ -202,10 +238,11 @@ export class Level {
     const bodies = await Promise.all(Object.values(FILE).map(f => model(f)));
     const byKind = { barrel: bodies[0], crate: bodies[1], bucket: bodies[2] };
 
-    for (const p of d.props) {
+    d.props.forEach((p, i) => {
+      if (this.broken.includes(i)) { this.grid.clearCircle({ x: p.x, z: p.z, r: PROP_RADIUS }, NAV.heroRadius); return; }
       const o = this.clone(byKind[p.kind], p.x, 0, p.z, p.scale, p.rot);
-      this.breakables.push(new Breakable(o, p, this.onBreak));
-    }
+      if (d.floor >= 0) this.breakables.push(new Breakable(o, p, i, this.onBreak));
+    });
     for (const c of d.chests) this.clone(chest, c.x, 0.21, c.z, 1.25, 0.4);
 
     for (const t of d.torches) {
@@ -233,15 +270,49 @@ export class Level {
         this.fires.push({ flame: null, light: new Vector3(a.x, 1.2, a.z + 3), size: 0, power: 20, color: PALETTE.blood, radius: 7 });
       }
     }
+    this.fires.push({ flame: null, light: new Vector3(d.waystone.x, 2.9, d.waystone.z + 1), size: 0, power: 7, color: 0x7fa6a0, radius: 4.5 });
+    if (d.tower) this.fires.push({ flame: null, light: new Vector3(d.tower.x + 2.6, 2.8, d.tower.z + 2.6), size: 0, power: 16, color: PALETTE.fire, radius: 8 });
     // 樓梯口有光，遠處都搵到
     const { down } = d;
     this.fires.push({ flame: null, light: new Vector3(down.x, 1.3, down.z + 1.6), size: 0, power: 10, color: new Color(PALETTE.bone).getHex(), radius: 5 });
+  }
+
+  /** 小鎮外牆變屋：木框、窗、門 */
+  private buildTown() {
+    const wood = pbr('town_wood', this.aniso, () => {});
+    wood.color.set(0x8a7560);
+    const room = this.d.rooms[0], beams: BufferGeometry[] = [], windows: BufferGeometry[] = [];
+    const n = room.y * CELL, w = room.x * CELL, H = WALL.height;
+    const east = (room.x + room.w) * CELL, south = (room.y + room.h) * CELL;
+    for (let x = w + 2; x < east; x += 4) {
+      if (Math.abs(x - this.d.down.x) < 2.2) continue;
+      beams.push(box(0.26, H, 0.16, x, H / 2, n + 0.06, 0.03));
+      if (Math.abs(x + 2 - this.d.down.x) > 2.6) windows.push(new PlaneGeometry(0.9, 1.1).translate(x + 2, 3, n + 0.05));
+    }
+    for (let z = n + 2; z < south; z += 4) {
+      beams.push(box(0.16, H, 0.26, w + 0.06, H / 2, z, 0.03));
+      windows.push(new PlaneGeometry(0.9, 1.1).rotateY(Math.PI / 2).translate(w + 0.05, 3, z + 2));
+    }
+    for (const y of [2.3, 4.2]) {
+      // 喺大門兩邊分開兩段，唔好穿過門口
+      const g1 = this.d.down.x - 2, g2 = this.d.down.x + 2;
+      beams.push(box(g1 - w, 0.22, 0.14, (g1 + w) / 2, y, n + 0.08, 0.03));
+      beams.push(box(east - g2, 0.22, 0.14, (east + g2) / 2, y, n + 0.08, 0.03));
+      beams.push(box(0.14, 0.22, south - n, w + 0.08, y, (south + n) / 2, 0.03));
+    }
+    const geo = mergeGeometries(beams.map(g => worldUV(g, 1.8)));
+    const m = new Mesh(geo, wood);
+    m.castShadow = m.receiveShadow = true;
+    this.root.add(m);
+    const glow = new Mesh(mergeGeometries(windows.map(g => g.index ? g.toNonIndexed() : g)), windowMat);
+    this.root.add(glow);
   }
 
   async build() {
     this.grid = navGrid(this.d);
     await this.buildTiles();
     await this.buildProps();
+    if (this.d.floor < 0) this.buildTown();
     this.scene.add(this.root);
     return this;
   }

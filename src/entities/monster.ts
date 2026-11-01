@@ -32,6 +32,7 @@ export class Monster {
   state: State = 'idle';
   gone = false; // 屍體淡出完
   counted = false; // 已計入擊殺數
+  index = -1; // 地城出生位，用嚟記低打死咗邊隻
   traits: EliteTrait[];
 
   private dmgMult: number;

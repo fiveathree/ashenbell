@@ -13,6 +13,8 @@ export interface Item {
 }
 
 let nextUid = 1;
+/** 讀檔之後唔好撞舊物品 uid */
+export const noteUid = (uid: number) => { nextUid = Math.max(nextUid, uid + 1); };
 
 export function rollRarity(rng: Rng): Rarity {
   let k = rng();

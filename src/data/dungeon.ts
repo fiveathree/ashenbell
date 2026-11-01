@@ -37,5 +37,9 @@ export const THEMES: Theme[] = [
   { name: '封印之井', floorTex: 'well_floor', wallTex: 'well_wall', waterChance: 0, floorMeters: 2.8, wallMeters: 3.6, runes: true, speedInWater: 1 },
 ];
 
+export const TOWN: Theme = { name: '荒鐘鎮', floorTex: 'town_floor', wallTex: 'town_wall', waterChance: 0, floorMeters: 3, wallMeters: 3.4, runes: false, speedInWater: 1 };
+export const themeOf = (floor: number) => (floor < 0 ? TOWN : THEMES[floor]);
+export const placeName = (floor: number) => (floor < 0 ? TOWN.name : `第 ${floor + 1} 層 · ${THEMES[floor].name}`);
+
 export const BREAK = { goldMin: 1, goldMax: 6, reach: 0.95 };
 export const VIEW = { flameActive: 24, revealRadius: 9 };
