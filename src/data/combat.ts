@@ -21,24 +21,4 @@ export const HERO = {
   respawnDelay: 3,
 };
 
-export const GHOUL = {
-  name: '屍鬼',
-  level: 2,
-  hp: 26,
-  armor: 5,
-  damage: [3, 6] as [number, number],
-  speed: 1.5,
-  attackRange: 1.4,
-  attackTime: 1.8,
-  impactAt: 0.55,
-  sightRange: 7,
-  staggerTime: 0.25,
-  repath: 0.5,
-  radius: 0.45,
-  corpseTime: 10,
-  fadeTime: 2,
-  tint: 0x56604a,
-  scale: 0.96,
-};
-
 export const NAV = { cell: 0.5, holdRepeat: 0.2, repath: 0.3, heroRadius: 0.45 };

@@ -37,8 +37,8 @@ describe('地城生成', { timeout: 120000 }, () => {
   it('屍鬼唔會出生喺入口房，亦唔會超過上限', () => {
     for (let seed = 1; seed <= 20; seed++) {
       const d = generate(seed, 0), e = d.rooms.find(r => r.kind === 'entry')!;
-      expect(d.ghouls.length).toBeLessThanOrEqual(GEN.ghoulsMax);
-      for (const m of d.ghouls) {
+      expect(d.spawns.length).toBeLessThanOrEqual(GEN.monstersMax);
+      for (const m of d.spawns) {
         const c = m.x / CELL, r = m.z / CELL;
         expect(c >= e.x && c < e.x + e.w && r >= e.y && r < e.y + e.h).toBe(false);
       }

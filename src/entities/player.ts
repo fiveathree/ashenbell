@@ -3,6 +3,7 @@ import { GLTF, GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { LIGHT, PLAYER } from '../data/art';
 import { HERO, NAV } from '../data/combat';
 import { rollDamage } from '../combat/damage';
+import { SKILLS } from '../data/skills';
 import type { Grid, Pt } from '../world/grid';
 
 /** 主角攻擊得到嘅嘢：怪物或者可打破道具 */
@@ -28,6 +29,15 @@ export class Player {
   deadFor = 0;
   attackTarget: Target | null = null;
   speedMul = 1;
+  spinning = false;
+  charging = false;
+  buffTime = 0;
+  private slowTime = 0;
+  onHurt: ((amount: number) => void) | null = null;
+  private chargeTo: Pt | null = null;
+  private chargeSpeed = 0;
+  private chargeDone: (() => void) | null = null;
+  private recover = 0;
 
   arrived: (() => void) | null = null;
   private path: Pt[] = [];
@@ -92,13 +102,45 @@ export class Player {
     this.repath = 0;
   }
 
+  get facing() { return this.yaw; }
+  get swinging() { return this.swing >= 0; }
+  slow(s: number) { this.slowTime = Math.max(this.slowTime, s); }
+  touchCombat() { this.sinceCombat = 0; }
+
+  /** 技能揮一下：唔做普攻判定，傷害由技能自己計 */
+  faceAndSwing(yaw: number, time: number) {
+    this.yaw = yaw; this.swing = 0; this.struck = true; this.recover = time;
+    this.attackTarget = null; this.path = [];
+  }
+
+  startCharge(to: Pt, speed: number, done: () => void) {
+    this.charging = true; this.chargeTo = to; this.chargeSpeed = speed; this.chargeDone = done;
+    this.path = []; this.attackTarget = null; this.swing = -1;
+    this.yaw = Math.atan2(to.x - this.pos.x, to.z - this.pos.z);
+  }
+
+  /** 計傷害（普攻、技能共用公式）；gainRage = 呢下有冇加怒氣 */
+  damage(t: Target, mult: number, gainRage = false) {
+    const { amount, crit } = rollDamage({
+      weapon: HERO.weapon, skillMult: mult, strength: HERO.strength,
+      bonusPct: this.buffTime > 0 ? SKILLS.roar.bonusPct : 0,
+      critChance: HERO.dexterity * HERO.critPerDexterity, critMult: HERO.critMultiplier,
+      targetArmor: t.armor, attackerLevel: HERO.level,
+    });
+    t.takeHit(amount, crit);
+    if (gainRage) this.rage = Math.min(HERO.rageMax, this.rage + HERO.rageOnHit);
+    this.sinceCombat = 0;
+  }
+
   hurt(amount: number) {
     if (this.dead) return;
+    this.onHurt?.(amount);
     this.hp = Math.max(0, this.hp - amount);
     this.rage = Math.min(HERO.rageMax, this.rage + HERO.rageOnHurt);
     this.sinceCombat = 0;
     if (this.hp === 0) {
       this.dead = true; this.deadFor = 0; this.path = []; this.attackTarget = null; this.swing = -1;
+      this.charging = false; this.spinning = false;
     }
   }
 
@@ -135,7 +177,8 @@ export class Player {
       const a = this.path[i]; return s + Math.hypot(p.x - a.x, p.z - a.z);
     }, 0);
     const run = left > PLAYER.runDistance || (this.current === 'Run' && left > 0.8);
-    const step = Math.min((run ? PLAYER.runSpeed : PLAYER.walkSpeed) * this.speedMul * dt, d);
+    const mul = this.speedMul * (this.slowTime > 0 ? 0.6 : 1) * (this.spinning ? SKILLS.whirl.moveMul : 1);
+    const step = Math.min((run ? PLAYER.runSpeed : PLAYER.walkSpeed) * mul * dt, d);
     pos.x += dx / d * step; pos.z += dz / d * step;
     this.yaw = Math.atan2(dx, dz);
     return run ? 'Run' : 'Walk';
@@ -144,13 +187,13 @@ export class Player {
   private fight(dt: number): Clip {
     const g = this.attackTarget;
     if (this.swing >= 0) {
-      this.swing += dt / HERO.attackTime;
+      this.swing += dt / (this.recover || HERO.attackTime);
       if (g) this.yaw = Math.atan2(g.pos.x - this.pos.x, g.pos.z - this.pos.z);
       if (!this.struck && this.swing >= HERO.impactAt) {
         this.struck = true;
         if (g && !g.dead && g.pos.distanceTo(this.pos) < HERO.attackRange + 0.5) this.strike(g);
       }
-      if (this.swing >= 1) this.swing = -1;
+      if (this.swing >= 1) { this.swing = -1; this.recover = 0; }
       return 'Idle';
     }
     if (g && g.dead) this.attackTarget = null;
@@ -166,14 +209,19 @@ export class Player {
     return this.walk(dt);
   }
 
-  private strike(g: Target) {
-    const { amount, crit } = rollDamage({
-      weapon: HERO.weapon, strength: HERO.strength, critChance: HERO.dexterity * HERO.critPerDexterity,
-      critMult: HERO.critMultiplier, targetArmor: g.armor, attackerLevel: HERO.level,
-    });
-    g.takeHit(amount, crit);
-    this.rage = Math.min(HERO.rageMax, this.rage + HERO.rageOnHit);
-    this.sinceCombat = 0;
+  private strike(g: Target) { this.damage(g, 1, true); }
+
+  private rush(dt: number): Clip {
+    const to = this.chargeTo!, dx = to.x - this.pos.x, dz = to.z - this.pos.z, d = Math.hypot(dx, dz);
+    const step = this.chargeSpeed * dt;
+    if (d <= step) {
+      this.pos.x = to.x; this.pos.z = to.z;
+      this.charging = false; this.chargeTo = null;
+      const done = this.chargeDone; this.chargeDone = null; done?.();
+      return 'Idle';
+    }
+    this.pos.x += dx / d * step; this.pos.z += dz / d * step;
+    return 'Run';
   }
 
   update(dt: number) {
@@ -188,10 +236,15 @@ export class Player {
       this.syncLight();
       return;
     }
-    const clip = this.fight(dt);
-    const want = this.yaw + Math.PI;
-    const diff = Math.atan2(Math.sin(want - this.model.rotation.y), Math.cos(want - this.model.rotation.y));
-    this.model.rotation.y += diff * Math.min(1, PLAYER.turnLerp * dt);
+    this.buffTime = Math.max(0, this.buffTime - dt);
+    this.slowTime = Math.max(0, this.slowTime - dt);
+    const clip = this.charging ? this.rush(dt) : this.spinning ? this.walk(dt) : this.fight(dt);
+    if (this.spinning) this.model.rotation.y += 16 * dt;
+    else {
+      const want = this.yaw + Math.PI;
+      const diff = Math.atan2(Math.sin(want - this.model.rotation.y), Math.cos(want - this.model.rotation.y));
+      this.model.rotation.y += diff * Math.min(1, PLAYER.turnLerp * dt);
+    }
     this.setClip(clip);
     this.mixer.update(dt);
     if (this.swing >= 0) applySwing(this.bones, Math.min(1, this.swing));

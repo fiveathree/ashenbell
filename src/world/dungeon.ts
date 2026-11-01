@@ -2,6 +2,7 @@
 import { CELL, GEN, THEMES } from '../data/dungeon';
 import { mulberry32, randInt, type Rng } from '../core/rng';
 import { navGrid } from './nav';
+import { ELITE, FLOOR_TABLE, type EliteTrait, type MonsterId } from '../data/monsters';
 
 export const T = { WALL: 0, FLOOR: 1, WATER: 2, DOWN: 3, UP: 4 } as const;
 export type RoomKind = 'entry' | 'exit' | 'normal' | 'altar' | 'chest' | 'elite';
@@ -11,6 +12,7 @@ export interface Pos { x: number; z: number }
 export interface TorchSpot extends Pos { dx: number; dz: number } // dx,dz = 由牆指向房內
 export interface Prop extends Pos { kind: 'barrel' | 'crate' | 'bucket'; rot: number; scale: number }
 export interface Pillar extends Pos { h: number }
+export interface Spawn extends Pos { type: MonsterId; level: number; traits: EliteTrait[] }
 export interface Stairs { c: number; r: number; x: number; z: number }
 
 export interface Dungeon {
@@ -18,7 +20,14 @@ export interface Dungeon {
   tiles: number[]; rooms: Room[];
   down: Stairs; up: Stairs;
   torches: TorchSpot[]; props: Prop[]; pillars: Pillar[];
-  ghouls: Pos[]; altars: Pos[]; chests: Pos[];
+  spawns: Spawn[]; altars: Pos[]; chests: Pos[];
+}
+
+function pickType(rng: Rng, floor: number) {
+  const entries = Object.entries(FLOOR_TABLE[floor]) as [MonsterId, number][];
+  let k = rng() * entries.reduce((s, e) => s + e[1], 0);
+  for (const [id, w] of entries) { k -= w; if (k <= 0) return id; }
+  return entries[0][0];
 }
 
 const center = (r: Room) => ({ c: r.x + (r.w >> 1), r: r.y + (r.h >> 1) });
@@ -129,7 +138,7 @@ function tryGenerate(rng: Rng, seed: number, floor: number): Dungeon | null {
     for (let r = o.y + 1; r < o.y + o.h - 1; r++) for (let c = o.x + 1; c < o.x + o.w - 1; c++) set(c, r, T.WATER);
   }
 
-  const torches: TorchSpot[] = [], props: Prop[] = [], pillars: Pillar[] = [], ghouls: Pos[] = [], altars: Pos[] = [], chests: Pos[] = [];
+  const torches: TorchSpot[] = [], props: Prop[] = [], pillars: Pillar[] = [], spawns: Spawn[] = [], altars: Pos[] = [], chests: Pos[] = [];
   const taken = new Set<number>();
   const key = (c: number, r: number) => r * cols + c;
 
@@ -172,19 +181,28 @@ function tryGenerate(rng: Rng, seed: number, floor: number): Dungeon | null {
       });
       k++;
     }
-    // 屍鬼：入口房唔放
+    // 怪物：入口房唔放；精英房第一隻係精英，帶 1–2 個特性
     if (o.kind !== 'entry') {
-      let count = randInt(rng, GEN.ghoulsPerRoom[0], GEN.ghoulsPerRoom[1]) + (o.kind === 'elite' ? 3 : 0);
-      for (let tries = 0; count > 0 && tries < 40 && ghouls.length < GEN.ghoulsMax; tries++) {
+      let count = randInt(rng, GEN.monstersPerRoom[0], GEN.monstersPerRoom[1]) + (o.kind === 'elite' ? 3 : 0);
+      let elite = o.kind === 'elite';
+      for (let tries = 0; count > 0 && tries < 40 && spawns.length < GEN.monstersMax; tries++) {
         const c = randInt(rng, o.x, o.x + o.w - 1), r = randInt(rng, o.y, o.y + o.h - 1);
         if (taken.has(key(c, r))) continue;
         const p = world(c, r);
-        ghouls.push({ x: p.x + (rng() - 0.5), z: p.z + (rng() - 0.5) });
+        const level = (floor + 1) * 4 + randInt(rng, -1, 1);
+        const type: MonsterId = at(c, r) === T.WATER ? 'drowned' : pickType(rng, floor);
+        const traits: EliteTrait[] = [];
+        if (elite) {
+          const pool = [...ELITE.allTraits];
+          for (let n = randInt(rng, 1, 2); n > 0; n--) traits.push(pool.splice(randInt(rng, 0, pool.length - 1), 1)[0]);
+          elite = false;
+        }
+        spawns.push({ x: p.x + (rng() - 0.5), z: p.z + (rng() - 0.5), type, level, traits });
         count--;
       }
     }
   }
-  const d: Dungeon = { seed, floor, cols, rows, tiles, rooms, down, up, torches, props, pillars, ghouls, altars, chests };
+  const d: Dungeon = { seed, floor, cols, rows, tiles, rooms, down, up, torches, props, pillars, spawns, altars, chests };
   // 擺完嘢之後確認每間房都行得到，唔通就成張圖重嚟
   const g = navGrid(d), from = { x: up.x, z: up.z + CELL };
   for (const o of rooms) {

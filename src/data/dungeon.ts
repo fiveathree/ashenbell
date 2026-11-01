@@ -12,8 +12,8 @@ export const GEN = {
   extraLinks: 3,
   torchEvery: 3,
   maxTorchesPerRoom: 3,
-  ghoulsPerRoom: [2, 4] as [number, number],
-  ghoulsMax: 45,
+  monstersPerRoom: [2, 4] as [number, number],
+  monstersMax: 45,
   propsPerRoom: [2, 5] as [number, number],
   pillarRoomSize: 6,
 };
@@ -38,4 +38,4 @@ export const THEMES: Theme[] = [
 ];
 
 export const BREAK = { goldMin: 1, goldMax: 6, reach: 0.95 };
-export const VIEW = { ghoulActive: 26, flameActive: 24, revealRadius: 9 };
+export const VIEW = { flameActive: 24, revealRadius: 9 };

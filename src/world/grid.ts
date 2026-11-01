@@ -27,6 +27,12 @@ export class Grid {
     return c < 0 || r < 0 || c >= this.w || r >= this.h || this.blocked[r * this.w + c] === 1;
   }
   isBlocked(x: number, z: number) { return this.cellBlocked(this.cx(x), this.cz(z)); }
+  /** 飛箭用：只睇永久障礙，唔計可打破道具 */
+  isWall(x: number, z: number) {
+    const c = this.cx(x), r = this.cz(z);
+    if (c < 0 || r < 0 || c >= this.w || r >= this.h) return true;
+    return (this.base ?? this.blocked)[r * this.w + c] === 1;
+  }
 
   /** 由「呢點行唔行得」起牆，四周按 pad 膨脹 */
   stampWalls(walkable: (x: number, z: number) => boolean, pad: number) {

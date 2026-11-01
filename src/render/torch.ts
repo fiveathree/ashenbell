@@ -193,7 +193,7 @@ export class Debris {
 
   constructor(private scene: Scene) {}
 
-  burst(x: number, z: number, color = PALETTE.bone) {
+  burst(x: number, z: number, color: number = PALETTE.bone) {
     const n = 26, pos = new Float32Array(n * 3), v = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
       pos[i * 3] = x; pos[i * 3 + 1] = 0.5; pos[i * 3 + 2] = z;

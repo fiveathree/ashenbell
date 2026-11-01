@@ -6,12 +6,17 @@ import { CAMERA, LIGHT, PALETTE, QUALITY, type QualityName } from './data/art';
 import { createComposer } from './render/postfx';
 import { Debris, Dust, Embers, FirePool } from './render/torch';
 import { Player, type Target } from './entities/player';
-import { Ghoul } from './entities/ghoul';
+import { Monster, type MonsterEvents } from './entities/monster';
+import { Vfx } from './render/vfx';
+import { Skills, SKILL_ORDER } from './combat/skills';
+import { Floats } from './ui/floats';
+import { FX } from './data/skills';
+import { AI, ELITE, MONSTERS, type EliteTrait, type MonsterId } from './data/monsters';
 import { Hud } from './ui/hud';
 import './ui/hud.css';
 import { MiniMap } from './ui/minimap';
-import { GHOUL, HERO, NAV } from './data/combat';
-import { BREAK, CELL, THEMES, VIEW } from './data/dungeon';
+import { HERO, NAV } from './data/combat';
+import { BREAK, CELL, THEMES } from './data/dungeon';
 import { generate, type Stairs } from './world/dungeon';
 import { Breakable, Level } from './world/level';
 import { navGrid } from './world/nav';
@@ -57,7 +62,44 @@ async function start() {
   const player = new Player(scene, navGrid(first), quality);
   await player.load();
 
-  let level!: Level, ghouls: Ghoul[] = [], gold = 0, kills = 0, changing = false, stairsGoal: Stairs | null = null;
+  const vfx = new Vfx(scene), floats = new Floats();
+  let level!: Level, monsters: Monster[] = [], gold = 0, kills = 0, changing = false, stairsGoal: Stairs | null = null;
+
+  const newMonster = (type: MonsterId, x: number, z: number, lv: number, traits: EliteTrait[] = []) => {
+    const m = new Monster(scene, player.gltf, level.grid, type, x, z, lv, traits, quality.ghoulShadows, events);
+    monsters.push(m);
+    return m;
+  };
+  const events: MonsterEvents = {
+    hit(m, amount, crit) {
+      floats.add(m.pos.x, 1.7, m.pos.z, String(Math.round(amount)), crit ? 'crit' : 'hit');
+      debris.burst(m.pos.x, m.pos.z, m.def.blood);
+      vfx.bump(crit ? FX.shakeCrit : FX.shakeHit);
+    },
+    died(m) {
+      vfx.blood(m.pos.x, m.pos.z, m.def.blood);
+      if (m.traits.includes('split')) {
+        for (let i = 0; i < ELITE.traits.split.spawns!; i++) newMonster('ghoul', m.pos.x + (i ? 0.7 : -0.7), m.pos.z, 4).state = 'chase';
+      }
+    },
+    arrow(m, dmg, spell) { vfx.shoot(m.pos, player.pos, dmg, spell); },
+    summon(m, n) {
+      const alive = monsters.filter(o => !o.dead).length;
+      for (let i = 0; i < n && alive + i < AI.caster.maxMonsters; i++) {
+        const p = level.grid.nearestFree(m.pos.x + (i ? 1.2 : -1.2), m.pos.z + 1);
+        if (p) newMonster('ghoul', p.x, p.z, (level.d.floor + 1) * 4).state = 'chase';
+      }
+      vfx.ring(m.pos.x, m.pos.z, 3, PALETTE.blood);
+    },
+    telegraph: (x, z, r, t) => vfx.telegraph(x, z, r, t),
+    heavyHit(x, z) { vfx.ring(x, z, AI.heavy.radius * 1.2, 0xd9771f); vfx.bump(FX.shakeHeavy); },
+    heal(m) { vfx.ring(m.pos.x, m.pos.z, 2, 0x5a9a5a); floats.add(m.pos.x, 1.7, m.pos.z, '治療', 'gold'); },
+  };
+  const skills = new Skills(player, vfx, () => monsters, () => level.breakables);
+  player.onHurt = n => {
+    floats.add(player.pos.x, 1.9, player.pos.z, String(Math.round(n)), 'hurt');
+    vfx.bump(FX.shakeHurt);
+  };
 
   const smash = (b: Breakable) => {
     level.remove(b);
@@ -72,13 +114,14 @@ async function start() {
   async function enter(floor: number, arrive: 'up' | 'down') {
     changing = true;
     hud.loading(`第 ${floor + 1} 層 · ${THEMES[floor].name}`);
-    if (level) { level.dispose(); ghouls.forEach(g => g.remove()); }
+    if (level) { level.dispose(); monsters.forEach(g => g.remove()); vfx.clear(); }
     await new Promise(r => setTimeout(r, 30));
     const d = floor === first.floor ? first : generate(seed, floor);
     level = await new Level(scene, d, aniso, quality.shadows, smash).build();
     player.grid = level.grid;
     pool.set(level.fires);
-    ghouls = d.ghouls.map(p => new Ghoul(scene, player.gltf, level.grid, p.x, p.z, quality.ghoulShadows));
+    monsters = [];
+    for (const s of d.spawns) newMonster(s.type, s.x, s.z, s.level, s.traits);
     const s = arrive === 'up' ? d.up : d.down;
     player.place(s.x, s.z + CELL);
     player.attackTarget = null;
@@ -102,8 +145,8 @@ async function start() {
   const pick = (): Target | null => {
     ray.setFromCamera(mouse, camera);
     let best: Target | null = null, bestD = 0.85;
-    if (ray.ray.intersectPlane(chestPlane, hitPt)) for (const g of ghouls) {
-      if (g.dead || !g.model.visible) continue;
+    if (ray.ray.intersectPlane(chestPlane, hitPt)) for (const g of monsters) {
+      if (g.dead || g.hidden || !g.model.visible) continue;
       const d = Math.hypot(hitPt.x - g.pos.x, hitPt.z - g.pos.z);
       if (d < bestD) { bestD = d; best = g; }
     }
@@ -136,13 +179,23 @@ async function start() {
       else if (ray.ray.intersectPlane(floorPlane, hitPt)) player.moveTo({ x: hitPt.x, z: hitPt.z });
     }
   };
+  const aimPoint = () => {
+    ray.setFromCamera(mouse, camera);
+    ray.ray.intersectPlane(floorPlane, hitPt);
+    return { x: hitPt.x, z: hitPt.z };
+  };
   renderer.domElement.addEventListener('pointerdown', e => {
-    if (e.button === 0) { held = true; holdTimer = NAV.holdRepeat; aim(e); act(true); }
+    aim(e);
+    if (e.button === 0) { held = true; holdTimer = NAV.holdRepeat; act(true); }
+    if (e.button === 2 && !changing) skills.press('heavy', aimPoint());
   });
   addEventListener('pointermove', aim);
   addEventListener('pointerup', () => { held = false; lockTarget = null; });
   addEventListener('contextmenu', e => e.preventDefault());
+  addEventListener('keyup', e => { if (e.key === '3') skills.release('whirl'); });
   addEventListener('keydown', e => {
+    const n = '1234'.indexOf(e.key);
+    if (n >= 0 && !e.repeat && !changing) skills.press(SKILL_ORDER[n], aimPoint());
     if (e.key === 'Tab') { e.preventDefault(); mapOpen = !mapOpen; hud.showMap(mapOpen); }
     if (e.key === 'Escape' && mapOpen) { mapOpen = false; hud.showMap(false); }
   });
@@ -171,17 +224,20 @@ async function start() {
     if (!changing) {
       player.speedMul = level.isWater(player.pos.x, player.pos.z) ? level.theme.speedInWater : 1;
       player.update(dt);
-      for (const g of ghouls) {
-        const far = g.pos.distanceTo(player.pos) > VIEW.ghoulActive;
-        g.model.visible = !far;
-        if (!far || g.dead) g.update(dt, player, ghouls);
+      skills.update(dt);
+      for (const g of [...monsters]) {
+        const far = g.pos.distanceTo(player.pos) > AI.active;
+        if (far && !g.dead) { g.model.visible = false; continue; }
+        if (!g.hidden) g.model.visible = true;
+        g.update(dt, player, monsters);
         if (g.dead && !g.counted) { g.counted = true; kills++; }
       }
-      for (let i = ghouls.length - 1; i >= 0; i--) if (ghouls[i].gone) ghouls.splice(i, 1);
+      monsters = monsters.filter(g => !g.gone);
+      vfx.update(dt, player, level.grid);
       if (player.dead && player.deadFor > HERO.respawnDelay) {
         const s = level.d.up;
         player.respawn(s.x, s.z + CELL);
-        ghouls.forEach(g => g.reset());
+        monsters.forEach(g => g.reset());
       }
       // 行到樓梯就上落
       if (stairsGoal && !player.dead && Math.hypot(player.pos.x - stairsGoal.x, player.pos.z - stairsGoal.z) < CELL * 1.25) {
@@ -197,14 +253,17 @@ async function start() {
     if (!changing) {
       const hover = pick(), st = hover ? null : pickStairs();
       const d = level.d;
-      hud.target(hover ? ('maxHp' in hover ? { name: GHOUL.name, hp: (hover as Ghoul).hp, maxHp: (hover as Ghoul).maxHp } : { name: hover.name })
+      hud.target(hover ? (hover instanceof Monster ? { name: hover.name, hp: hover.hp, maxHp: hover.maxHp, elite: hover.elite } : { name: hover.name })
         : st ? { name: st === d.down ? (d.floor < 2 ? '落去下一層' : '封印之井最深處') : (d.floor > 0 ? '返上一層' : '返回地面（小鎮未開放）') } : null);
     }
-    hud.update(player.hp, player.maxHp, player.rage, HERO.rageMax, `已殺屍鬼 ${kills}`, player.dead);
+    hud.update(player.hp, player.maxHp, player.rage, HERO.rageMax, `擊殺 ${kills}`, player.dead);
     focus.x += (fp.x - focus.x) * Math.min(1, CAMERA.followLerp * dt);
     focus.z += (fp.z - focus.z) * Math.min(1, CAMERA.followLerp * dt);
     distance += (wantDistance - distance) * Math.min(1, CAMERA.zoomLerp * dt);
     place(distance);
+    if (vfx.shake > 0) camera.position.add(new Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(vfx.shake * 2));
+    hud.skills(skills, player.buffTime);
+    floats.update(dt, camera);
     pool.update(t, camera, fp);
     embers.update(dt, t);
     dust.update(dt, t, fp);
@@ -218,7 +277,7 @@ async function start() {
   if (import.meta.env.DEV) {
     Object.assign(window, { __ashen: {
       player, camera, renderer, focus, Vector3, seed, map, kills: () => kills, gold: () => gold,
-      get ghouls() { return ghouls; }, get level() { return level; }, get changing() { return changing; }, get stats() { return stats; },
+      skills, vfx, MONSTERS, spawn: newMonster, get monsters() { return monsters; }, get level() { return level; }, get changing() { return changing; }, get stats() { return stats; },
       enter, snap() { focus.copy(player.pos).setY(1); },
     } });
   }

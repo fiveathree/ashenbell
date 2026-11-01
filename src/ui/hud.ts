@@ -1,4 +1,7 @@
 // HUD：HTML 疊喺 canvas 上面（PLAN.md 第 8 節）。尺寸全部用 --u，按螢幕高度縮放。
+import { SKILLS } from '../data/skills';
+import { SKILL_ORDER, type Skills } from '../combat/skills';
+
 const html = `
 <div id="hud">
   <div class="quest" id="quest"></div>
@@ -12,7 +15,7 @@ const html = `
     <div class="belt">
       <div class="xp"><i style="width:0"></i></div>
       <div class="slots">
-        <div class="slot"><b>1</b></div><div class="slot"><b>2</b></div><div class="slot"><b>3</b></div><div class="slot"><b>4</b></div>
+        ${SKILL_ORDER.map((id, i) => `<div class="slot skill" id="sk-${id}"><em>${SKILLS[id].glyph}</em><u></u><b>${i + 1}</b></div>`).join('')}
         <div class="gap"></div>
         <div class="slot"><b>Q</b></div><div class="slot"><b>W</b></div>
       </div>
@@ -35,6 +38,16 @@ export class Hud {
     this.big = $('bigmap') as HTMLCanvasElement;
   }
 
+  skills(s: Skills, buff: number) {
+    for (const id of SKILL_ORDER) {
+      const el = $(`sk-${id}`), def = SKILLS[id] as { cooldown?: number }, left = s.cooldown[id];
+      const u = el.children[1] as HTMLElement;
+      u.style.background = def.cooldown && left > 0 ? `conic-gradient(rgba(0,0,0,.78) ${left / def.cooldown * 360}deg,transparent 0)` : 'none';
+      el.classList.toggle('off', !s.ready(id) && !(def.cooldown && left > 0));
+      el.classList.toggle('on', (id === 'whirl' && s.whirling) || (id === 'roar' && buff > 0));
+    }
+  }
+
   gold(n: number) { $('gold').textContent = String(n); }
   floor(name: string) { $('floorName').textContent = name; }
   loading(name: string | null) { $('lvLoad').hidden = !name; if (name) $('lvName').textContent = name; }
@@ -52,10 +65,11 @@ export class Hud {
     $('deadBox').hidden = !dead;
   }
 
-  target(t: { name: string; hp?: number; maxHp?: number } | null) {
+  target(t: { name: string; hp?: number; maxHp?: number; elite?: boolean } | null) {
     $('target').hidden = !t;
     if (!t) return;
     $('tname').textContent = t.name;
+    $('tname').classList.toggle('elite', !!t.elite);
     const bar = t.maxHp !== undefined;
     ($('tfill').parentElement as HTMLElement).style.display = bar ? '' : 'none';
     if (bar) $('tfill').style.width = `${t.hp! / t.maxHp! * 100}%`;
