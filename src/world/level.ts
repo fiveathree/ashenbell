@@ -1,5 +1,5 @@
 import {
-  AdditiveBlending, BufferGeometry, Color, Group, LoadingManager, Mesh, MeshStandardMaterial, Object3D,
+  AdditiveBlending, BufferAttribute, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LoadingManager, Mesh, MeshStandardMaterial, Object3D,
   PlaneGeometry, RepeatWrapping, SRGBColorSpace, Scene, ShaderMaterial, Texture, TextureLoader, Vector2, Vector3,
 } from 'three';
 import { GLTF, GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -9,6 +9,7 @@ import type { Fire } from '../render/torch';
 import { LIGHT, PALETTE } from '../data/art';
 import { CELL, themeOf, WALL, type Theme } from '../data/dungeon';
 import { NAV } from '../data/combat';
+import { DECOR, HOUSES, LAMPS, SMITHY, STALL, WELL } from '../data/town';
 import { T, type Dungeon, type Prop } from './dungeon';
 import { navGrid, PROP_RADIUS } from './nav';
 import type { Grid } from './grid';
@@ -61,6 +62,30 @@ const runeMat = new ShaderMaterial({
       gl_FragColor=vec4(vec3(.62,.02,.012)*pulse,g*(1.-smoothstep(.9,1.,r)));
     }`,
 });
+
+/** 兩面斜屋頂，屋脊沿 x 軸 */
+function gable(x0: number, x1: number, z0: number, z1: number, y: number, rise: number) {
+  const zm = (z0 + z1) / 2, top = y + rise;
+  const p = [
+    x0, y, z1, x1, y, z1, x1, top, zm, x0, y, z1, x1, top, zm, x0, top, zm, // 南坡
+    x1, y, z0, x0, y, z0, x0, top, zm, x1, y, z0, x0, top, zm, x1, top, zm, // 北坡
+  ];
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(p, 3));
+  g.setAttribute('uv', new Float32BufferAttribute(new Array(p.length / 3 * 2).fill(0), 2));
+  g.computeVertexNormals();
+  return g;
+}
+
+/** 屋頂東面嗰幅三角牆 */
+function gableEnd(_x0: number, x1: number, y: number, z0: number, z1: number, rise: number) {
+  const zm = (z0 + z1) / 2, p = [x1, y, z1, x1, y, z0, x1, y + rise, zm];
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(p, 3));
+  g.setAttribute('uv', new Float32BufferAttribute([0, 0, 0, 0, 0, 0], 2));
+  g.computeVertexNormals();
+  return g;
+}
 
 /** 屋窗：暗木窗格後面有微弱燭光，唔係平面色塊 */
 const windowMat = new ShaderMaterial({
@@ -278,42 +303,87 @@ export class Level {
     for (const p of d.redLights ?? []) this.fires.push({ flame: null, light: new Vector3(p.x, 1.6, p.z), size: 0, power: 14, color: PALETTE.blood, radius: 9 });
   }
 
-  /** 小鎮外牆變屋：木框、窗、門 */
-  private buildTown() {
-    const wood = pbr('town_wood', this.aniso, () => {});
-    wood.color.set(0x8a7560);
-    const room = this.d.rooms[0], beams: BufferGeometry[] = [], windows: BufferGeometry[] = [];
-    const n = room.y * CELL, w = room.x * CELL, H = WALL.height;
-    const east = (room.x + room.w) * CELL, south = (room.y + room.h) * CELL;
-    for (let x = w + 2; x < east; x += 4) {
-      if (Math.abs(x - this.d.down.x) < 2.2) continue;
-      beams.push(box(0.26, H, 0.16, x, H / 2, n + 0.06, 0.03));
-      if (Math.abs(x + 2 - this.d.down.x) > 2.6) windows.push(new PlaneGeometry(0.9, 1.1).translate(x + 2, 3, n + 0.05));
+  /** 荒鐘鎮：屋、鐵匠鋪、草藥檔、水井、街燈、擺設 */
+  private async buildTown() {
+    const wood = pbr('town_wood', this.aniso, () => {}), roof = pbr('town_roof', this.aniso, () => {});
+    wood.color.set(0x9a846c);
+    const plaster = mats.get(this.theme.wallTex)!, stone = mats.get('crypt_wall') ?? pbr('crypt_wall', this.aniso, () => {});
+    const water: BufferGeometry[] = [], walls: BufferGeometry[] = [], timber: BufferGeometry[] = [], tiles: BufferGeometry[] = [], glass: BufferGeometry[] = [], rock: BufferGeometry[] = [];
+
+    for (const h of HOUSES) {
+      const { x, z, w, d, h: H, door } = h, sx = z + d, ex = x + w;
+      walls.push(box(w, H, d, x + w / 2, H / 2, z + d / 2, 0.04));
+      // 木框
+      for (const px of [x, x + w / 3, x + w * 2 / 3, ex]) timber.push(box(0.2, H, 0.14, px, H / 2, sx + 0.02, 0.02));
+      for (const pz of [z, z + d / 2, sx]) timber.push(box(0.14, H, 0.2, ex + 0.02, H / 2, pz, 0.02));
+      timber.push(box(w + 0.2, 0.2, 0.14, x + w / 2, 2.2, sx + 0.03, 0.02), box(0.14, 0.2, d + 0.2, ex + 0.03, 2.2, z + d / 2, 0.02));
+      timber.push(box(w + 0.4, 0.22, 0.16, x + w / 2, H, sx + 0.03, 0.02));
+      // 門窗
+      timber.push(box(1.1, 2.1, 0.12, x + door, 1.05, sx + 0.08, 0.02));
+      glass.push(new PlaneGeometry(0.9, 1).translate(x + door + 2, 2.9 > H ? 2 : 1.4, sx + 0.06));
+      if (door > 2.5) glass.push(new PlaneGeometry(0.9, 1).translate(x + door - 2, 1.4, sx + 0.06));
+      glass.push(new PlaneGeometry(0.9, 1).rotateY(Math.PI / 2).translate(ex + 0.06, 1.4, z + d / 2));
+      tiles.push(gable(x - 0.5, ex + 0.5, z - 0.5, sx + 0.5, H, 2.2));
+      walls.push(gableEnd(x, ex, H, z - 0.45, sx + 0.45, 2.1));
     }
-    for (let z = n + 2; z < south; z += 4) {
-      beams.push(box(0.16, H, 0.26, w + 0.06, H / 2, z, 0.03));
-      windows.push(new PlaneGeometry(0.9, 1.1).rotateY(Math.PI / 2).translate(w + 0.05, 3, z + 2));
+
+    // 鐵匠鋪：三面開放嘅棚，後面石爐
+    const s = SMITHY;
+    for (const [px, pz] of [[s.x + 0.1, s.z + 0.1], [s.x + s.w, s.z + 0.1], [s.x + 0.1, s.z + s.d], [s.x + s.w, s.z + s.d]]) timber.push(box(0.3, s.h, 0.3, px, s.h / 2, pz, 0.03));
+    tiles.push(gable(s.x - 0.4, s.x + s.w + 0.5, s.z - 0.4, s.z + s.d + 0.4, s.h, 1.5));
+    rock.push(box(2.4, 1.3, 3, s.x + 1.3, 0.65, s.z + 4, 0.08), box(1.2, 3.4, 1.2, s.x + 0.8, 1.7, s.z + 4, 0.06));
+    timber.push(box(0.7, 0.8, 0.7, s.x + 4.4, 0.4, s.z + 3, 0.05));
+    rock.push(box(1, 0.22, 0.42, s.x + 4.4, 0.92, s.z + 3, 0.04));
+    this.fires.push({ flame: new Vector3(s.x + 2.4, 1.3, s.z + 4), light: new Vector3(s.x + 3.2, 1.8, s.z + 4), size: 0.9, power: 26, color: PALETTE.fire, radius: 8 });
+
+    // 草藥檔：矮木枱加布棚
+    const m = STALL;
+    timber.push(box(m.w, 0.9, 1, m.x + m.w / 2, 0.45, m.z + 0.5, 0.04));
+    for (const [px, pz] of [[m.x, m.z], [m.x + m.w, m.z], [m.x, m.z + m.d], [m.x + m.w, m.z + m.d]]) timber.push(box(0.14, m.h, 0.14, px, m.h / 2, pz, 0.02));
+    tiles.push(gable(m.x - 0.3, m.x + m.w + 0.3, m.z - 0.3, m.z + m.d + 0.3, m.h, 0.7));
+    this.fires.push({ flame: null, light: new Vector3(m.x + m.w / 2, 2, m.z + 2), size: 0, power: 10, color: PALETTE.fire, radius: 6 });
+
+    // 水井
+    const w = WELL;
+    for (let i = 0; i < 12; i++) {
+      const t = i / 12 * Math.PI * 2;
+      rock.push(box(0.68, 0.85, 0.34, 0, 0, 0, 0.03).rotateY(Math.PI / 2 - t).translate(w.x + Math.cos(t) * w.r, 0.42, w.z + Math.sin(t) * w.r));
     }
-    for (const y of [2.3, 4.2]) {
-      // 喺大門兩邊分開兩段，唔好穿過門口
-      const g1 = this.d.down.x - 2, g2 = this.d.down.x + 2;
-      beams.push(box(g1 - w, 0.22, 0.14, (g1 + w) / 2, y, n + 0.08, 0.03));
-      beams.push(box(east - g2, 0.22, 0.14, (east + g2) / 2, y, n + 0.08, 0.03));
-      beams.push(box(0.14, 0.22, south - n, w + 0.08, y, (south + n) / 2, 0.03));
+    water.push(new CircleGeometry(w.r - 0.1, 20).rotateX(-Math.PI / 2).translate(w.x, 0.5, w.z));
+    timber.push(box(0.14, 2.3, 0.14, w.x - 1.2, 1.15, w.z, 0.02), box(0.14, 2.3, 0.14, w.x + 1.2, 1.15, w.z, 0.02), box(2.8, 0.14, 0.14, w.x, 2.3, w.z, 0.02));
+
+    // 街燈
+    const [lantern] = await Promise.all([model('lantern_01.glb')]);
+    for (const [x, z] of LAMPS) {
+      timber.push(box(0.16, 2.6, 0.16, x, 1.3, z, 0.02));
+      this.clone(lantern, x, 2.6, z, 1.5, 0, false);
+      this.fires.push({ flame: new Vector3(x, 2.8, z), light: new Vector3(x, 2.5, z + 0.3), size: 0.3, power: 15, color: PALETTE.fire, radius: 7 });
     }
-    const geo = mergeGeometries(beams.map(g => worldUV(g, 1.8)));
-    const m = new Mesh(geo, wood);
-    m.castShadow = m.receiveShadow = true;
-    this.root.add(m);
-    const glow = new Mesh(mergeGeometries(windows.map(g => g.index ? g.toNonIndexed() : g)), windowMat);
-    this.root.add(glow);
+
+    const merged = (list: BufferGeometry[], mat: MeshStandardMaterial, meters: number, cast = true) => {
+      if (!list.length) return;
+      const g = mergeGeometries(list.map(o => worldUV(o.index ? o.toNonIndexed() : o, meters)));
+      const mesh = new Mesh(g, mat);
+      mesh.castShadow = cast; mesh.receiveShadow = true;
+      this.root.add(mesh);
+    };
+    const paint = (list: BufferGeometry[]) => list.map(o => { const n = o.index ? o.toNonIndexed() : o; n.setAttribute('color', new BufferAttribute(new Float32Array(n.attributes.position.count * 3).fill(1), 3)); return n; });
+    merged(paint(walls), plaster, this.theme.wallMeters);
+    merged(paint(rock), stone, this.theme.wallMeters);
+    merged(timber, wood, 1.8);
+    merged(tiles, roof, 2.4);
+    this.root.add(new Mesh(water[0], new MeshStandardMaterial({ color: 0x06090a, roughness: 0.2 })));
+    if (glass.length) this.root.add(new Mesh(mergeGeometries(glass.map(g => (g.index ? g.toNonIndexed() : g))), windowMat));
+
+    const models_ = await Promise.all(DECOR.map(o => model(o.file)));
+    DECOR.forEach((o, i) => this.clone(models_[i], o.x, o.y ?? 0, o.z, o.h ?? 1, o.rot ?? 0));
   }
 
   async build() {
     this.grid = navGrid(this.d);
     await this.buildTiles();
     await this.buildProps();
-    if (this.d.floor < 0) this.buildTown();
+    if (this.d.floor < 0) await this.buildTown();
     this.scene.add(this.root);
     return this;
   }

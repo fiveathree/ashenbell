@@ -24,7 +24,8 @@ export function navGrid(d: Dungeon) {
     { x: d.waystone.x, z: d.waystone.z, r: 0.6 },
     ...(d.tower ? [{ x: d.tower.x, z: d.tower.z, r: 2.5 }] : []),
   ];
-  for (const s of solids) g.stampCircle(s, NAV.heroRadius);
+  for (const s of [...solids, ...(d.solids ?? [])]) g.stampCircle(s, NAV.heroRadius);
+  if (d.rects) g.stamp([], d.rects, NAV.heroRadius);
   g.freeze();
   for (const p of d.props) g.stampCircle({ x: p.x, z: p.z, r: PROP_RADIUS }, NAV.heroRadius);
   return g;

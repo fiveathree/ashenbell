@@ -27,3 +27,16 @@
 .opening p{margin:0;min-height:calc(80*var(--u));font-size:calc(26*var(--u));line-height:1.7;letter-spacing:.1em;color:#c8b89a;animation:lvfadein 1.2s}
 .opening small{display:block;margin-top:calc(26*var(--u));color:#6e6048;font-size:calc(12*var(--u));letter-spacing:.2em}
 @keyframes lvfadein{from{opacity:.2}to{opacity:1}}
+
+.setbox{width:calc(420*var(--u));text-align:left}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:calc(10*var(--u));height:calc(34*var(--u));font-size:calc(14*var(--u));color:#e4d8bf}
+.setrow input[type=range]{flex:1;accent-color:#b8953d}
+.setrow input[type=checkbox]{width:calc(18*var(--u));height:calc(18*var(--u));accent-color:#b8953d}
+.setrow b{width:calc(30*var(--u));text-align:right;font-weight:400}
+.setnote{font-size:calc(12*var(--u))!important;color:#8d7a58!important;min-height:0!important}
+.segs{display:flex;gap:calc(4*var(--u))}
+.seg{pointer-events:auto;cursor:pointer;width:calc(56*var(--u));height:calc(28*var(--u));font:400 calc(13*var(--u)) "Noto Serif TC",serif;color:#a8956c;background:#17100a;border:1px solid #4a3a1c}
+.seg.on{color:#1a1208;background:#b8953d;border-color:#b8953d}
+.lvbar{width:calc(320*var(--u));height:calc(4*var(--u));margin-top:calc(14*var(--u));background:#1a120c;border:1px solid #4a3a1c}
+.lvbar i{display:block;height:100%;width:0;background:#b8953d}
+.loading{align-content:center;justify-items:center}

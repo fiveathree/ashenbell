@@ -1,5 +1,5 @@
 import {
-  Color, FogExp2, HemisphereLight, MathUtils, NoToneMapping, PCFShadowMap, PerspectiveCamera, Plane,
+  Color, DefaultLoadingManager, DirectionalLight, FogExp2, HemisphereLight, MathUtils, NoToneMapping, PCFShadowMap, PerspectiveCamera, Plane,
   Raycaster, SRGBColorSpace, Scene, Timer, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { CAMERA, LIGHT, PALETTE, QUALITY, type QualityName } from './data/art';
@@ -13,6 +13,9 @@ import { Floats } from './ui/floats';
 import { FX } from './data/skills';
 import { AI, ELITE, MONSTERS, type EliteTrait, type MonsterId } from './data/monsters';
 import { Hud } from './ui/hud';
+import { TOWN_LIGHT } from './data/town';
+import { sound } from './audio/sound';
+import { autoQuality, loadSettings, saveSettings } from './core/settings';
 import { Ui } from './ui/dialog';
 import './ui/dialog.css';
 import { Npc } from './entities/npc';
@@ -38,7 +41,12 @@ import { navGrid } from './world/nav';
 
 const params = new URLSearchParams(location.search);
 const param = params.get('q') as QualityName | null;
-const quality = QUALITY[param && param in QUALITY ? param : 'medium'];
+const settings = loadSettings();
+sound.setVolume(settings.volume);
+const probe = document.createElement('canvas').getContext('webgl2');
+const gpuName = probe ? String(probe.getParameter(probe.getExtension('WEBGL_debug_renderer_info')?.UNMASKED_RENDERER_WEBGL ?? probe.RENDERER)) : '';
+const qName: QualityName = param && param in QUALITY ? param : settings.quality === 'auto' ? autoQuality(gpuName) : settings.quality;
+const quality = QUALITY[qName];
 // 開發測試：網址有 seed 就跳過標題直接入地城，唔掂存檔
 const autostart = params.has('seed');
 const newSeed = () => Number(params.get('seed')) || (Math.random() * 1e9) >>> 0;
@@ -55,7 +63,18 @@ document.getElementById('app')!.appendChild(renderer.domElement);
 const scene = new Scene();
 scene.background = new Color(PALETTE.fog);
 scene.fog = new FogExp2(PALETTE.fog, LIGHT.fogDensity);
-scene.add(new HemisphereLight(0x6a5a50, 0x1a0f0a, LIGHT.hemi));
+const hemi = new HemisphereLight(0x6a5a50, 0x1a0f0a, LIGHT.hemi);
+const moon = new DirectionalLight(TOWN_LIGHT.moonColor, 0); // 燈數要固定，地城入面光度設 0
+moon.position.set(-20, 40, 30);
+scene.add(hemi, moon);
+/** 小鎮係安全地要睇得清楚，地城先係黑 */
+function atmosphere(town: boolean) {
+  hemi.intensity = town ? TOWN_LIGHT.hemi : LIGHT.hemi;
+  hemi.color.set(town ? TOWN_LIGHT.hemiSky : 0x6a5a50);
+  hemi.groundColor.set(town ? TOWN_LIGHT.hemiGround : 0x1a0f0a);
+  moon.intensity = town ? TOWN_LIGHT.moon : 0;
+  (scene.fog as FogExp2).density = town ? TOWN_LIGHT.fog : LIGHT.fogDensity;
+}
 
 const camera = new PerspectiveCamera(CAMERA.fov, innerWidth / innerHeight, 0.5, 80);
 const composer = createComposer(renderer, scene, camera, innerWidth, innerHeight, quality);
@@ -69,6 +88,15 @@ const place = (dist: number) => { camera.position.copy(focus).addScaledVector(ca
 async function start() {
   const aniso = renderer.capabilities.getMaxAnisotropy();
   const hud = new Hud();
+  // 載入進度：開機畫面同換層都用
+  DefaultLoadingManager.onProgress = (_u, done, total) => {
+    const k = total ? done / total : 0;
+    hud.loadProgress(k);
+    const b = document.getElementById('bootFill');
+    if (b) b.style.width = `${k * 100}%`;
+  };
+  addEventListener('pointerdown', () => sound.unlock());
+  addEventListener('keydown', () => sound.unlock());
   const map = new MiniMap(hud.mini, hud.big);
   const pool = new FirePool(scene, Math.min(LIGHT.maxTorches, quality.maxTorches));
   const embers = new Embers(scene, pool);
@@ -93,7 +121,7 @@ async function start() {
     for (const [k, v] of map.explored) world.explored[k] = Array.from(v).join('');
   };
   const save = () => {
-    if (autostart) return;
+    if (autostart || !level) return; // 標題畫面未開始玩，唔好寫空存檔
     encodeExplored();
     saveToDisk(pack(hero, story, world));
   };
@@ -114,11 +142,13 @@ async function start() {
   };
   const events: MonsterEvents = {
     hit(m, amount, crit) {
+      sound.play(m.def.blood === 0xc8b89a ? 'bone' : 'hit');
       floats.add(m.pos.x, 1.7, m.pos.z, String(Math.round(amount)), crit ? 'crit' : 'hit');
       debris.burst(m.pos.x, m.pos.z, m.def.blood);
       vfx.bump(crit ? FX.shakeCrit : FX.shakeHit);
     },
     died(m) {
+      sound.play('death');
       vfx.blood(m.pos.x, m.pos.z, m.def.blood);
       reward(m);
       if (m instanceof Boss) bossDown(m);
@@ -127,7 +157,7 @@ async function start() {
         for (let i = 0; i < ELITE.traits.split.spawns!; i++) newMonster('ghoul', m.pos.x + (i ? 0.7 : -0.7), m.pos.z, 4).state = 'chase';
       }
     },
-    arrow(m, dmg, spell) { vfx.shoot(m.pos, player.pos, dmg, spell); },
+    arrow(m, dmg, spell) { sound.play(spell ? 'spell' : 'arrow'); vfx.shoot(m.pos, player.pos, dmg, spell); },
     summon(m, n) {
       const alive = monsters.filter(o => !o.dead).length;
       for (let i = 0; i < n && alive + i < AI.caster.maxMonsters; i++) {
@@ -135,9 +165,10 @@ async function start() {
         if (p) newMonster('ghoul', p.x, p.z, (lv().d.floor + 1) * 4).state = 'chase';
       }
       vfx.ring(m.pos.x, m.pos.z, 3, PALETTE.blood);
+      sound.play('spell');
     },
     telegraph: (x, z, r, t) => vfx.telegraph(x, z, r, t),
-    heavyHit(x, z) { vfx.ring(x, z, AI.heavy.radius * 1.2, 0xd9771f); vfx.bump(FX.shakeHeavy); },
+    heavyHit(x, z) { sound.play('heavy'); vfx.ring(x, z, AI.heavy.radius * 1.2, 0xd9771f); vfx.bump(FX.shakeHeavy); },
     heal(m) { vfx.ring(m.pos.x, m.pos.z, 2, 0x5a9a5a); floats.add(m.pos.x, 1.7, m.pos.z, '治療', 'gold'); },
   };
   /** 怪物死：經驗同掉寶 */
@@ -148,6 +179,7 @@ async function start() {
       player.refresh();
       player.hp = player.maxHp;
       hud.levelUp(hero.level);
+      sound.play('levelup');
       save();
       vfx.ring(player.pos.x, player.pos.z, 4, 0xb8953d);
     }
@@ -180,8 +212,9 @@ async function start() {
     if (d.item) {
       if (!hero.addItem(d.item)) { floats.add(player.pos.x, 2, player.pos.z, '背包已滿', 'gold'); return false; }
       panels.render();
-    } else if (d.gold) { hero.gold += d.gold; hud.gold(hero.gold); }
-    else if (d.potion) hero.potions[d.potion]++;
+      sound.play(d.item.rarity === 'legend' ? 'legend' : 'item');
+    } else if (d.gold) { hero.gold += d.gold; hud.gold(hero.gold); sound.play('coin'); }
+    else if (d.potion) { hero.potions[d.potion]++; sound.play('item'); }
     field.remove(d);
     return true;
   };
@@ -190,11 +223,13 @@ async function start() {
   const skills = new Skills(player, vfx, () => monsters, () => lv().breakables);
   player.onHurt = n => {
     floats.add(player.pos.x, 1.9, player.pos.z, String(Math.round(n)), 'hurt');
+    sound.play('hurt');
     vfx.bump(FX.shakeHurt);
   };
 
   const smash = (b: Breakable) => {
     lv().remove(b);
+    sound.play('break');
     (world.broken[lv().d.floor] ??= []).push(b.index);
     debris.burst(b.pos.x, b.pos.z);
     if (Math.random() < 0.6) {
@@ -229,6 +264,8 @@ async function start() {
     hud.floor(placeName(floor));
     hud.gold(hero.gold);
     world.floor = floor;
+    atmosphere(floor < 0);
+    sound.ambient(floor < 0 ? 'town' : 'dungeon');
     changing = false; stairsGoal = null; talkGoal = null; stoneGoal = false;
     hud.loading(null);
     save();
@@ -332,6 +369,10 @@ async function start() {
     if (e.button === 2 && !busy() && lv().d.floor >= 0) skills.press('heavy', aimPoint());
   });
   addEventListener('pointermove', aim);
+  const openSettings = (back: () => void) => ui.settings(settings, qName, gpuName.replace(/^ANGLE \(|, D3D11\)$|\(0x[0-9A-Fa-f]+\)|Direct3D11.*$/g, '').trim(), () => {
+    saveSettings(settings);
+    sound.setVolume(settings.volume);
+  }, () => { save(); location.reload(); }, back);
   addEventListener('pointerup', () => { held = false; lockTarget = null; });
   addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('keyup', e => { if (e.key === '3') skills.release('whirl'); if (e.key === 'Alt') field.showAll = false; });
@@ -345,10 +386,10 @@ async function start() {
     if (e.key === 'Alt') { e.preventDefault(); field.showAll = true; }
     if (!e.repeat && (k === 'q' || k === 'w') && !player.dead) {
       if (k === 'q' && hero.potions.hp > 0 && player.hp < player.maxHp) {
-        hero.potions.hp--; player.hp = Math.min(player.maxHp, player.hp + player.maxHp * DROP.potionHeal);
+        sound.play('potion'); hero.potions.hp--; player.hp = Math.min(player.maxHp, player.hp + player.maxHp * DROP.potionHeal);
       }
       if (k === 'w' && hero.potions.rage > 0 && player.rage < HERO.rageMax) {
-        hero.potions.rage--; player.rage = Math.min(HERO.rageMax, player.rage + DROP.rageGain);
+        sound.play('potion'); hero.potions.rage--; player.rage = Math.min(HERO.rageMax, player.rage + DROP.rageGain);
       }
     }
     if (e.key === 'Tab') { e.preventDefault(); mapOpen = !mapOpen; hud.showMap(mapOpen); }
@@ -359,12 +400,13 @@ async function start() {
       if (ui.dialogOpen) ui.closeDialog();
       if (ui.shopOpen) ui.closeShop();
       if (!any && level) {
-        ui.menu(() => { encodeExplored(); exportFile(pack(hero, story, world)); }, loadImport, () => { save(); location.reload(); });
+        const open = () => ui.menu(() => { encodeExplored(); exportFile(pack(hero, story, world)); }, loadImport, () => { save(); location.reload(); }, () => openSettings(open));
+        open();
       }
     }
   });
   addEventListener('wheel', e => {
-    wantDistance = MathUtils.clamp(wantDistance + Math.sign(e.deltaY), CAMERA.minDistance, CAMERA.maxDistance);
+    wantDistance = MathUtils.clamp(wantDistance + Math.sign(e.deltaY) * (settings.invertZoom ? -1 : 1), CAMERA.minDistance, CAMERA.maxDistance);
   }, { passive: true });
   addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
@@ -397,15 +439,35 @@ async function start() {
     ui.opening(OPENING, () => enter(-1, 'down'));
   };
 
+  renderer.shadowMap.autoUpdate = false; // 由下面按畫質決定幾耐更新一次
+  let frame = 0;
+  let slowHud = 0, mapTick = 0;
+  // 自動畫質：幀率唔夠就降渲染解像度，夠就升返
+  const baseRatio = Math.min(devicePixelRatio, quality.pixelRatio);
+  let ratio = baseRatio, fpsSum = 0, fpsN = 0, adaptAt = 0;
+  const adapt = (raw: number) => {
+    if (settings.quality !== 'auto' || param || document.hidden || changing) return;
+    fpsSum += raw; fpsN++;
+    if (fpsSum < 2) return;
+    const fps = fpsN / fpsSum, now = performance.now();
+    fpsSum = fpsN = 0;
+    if (now - adaptAt < 4000) return;
+    const next = fps < 30 ? Math.max(0.5, ratio - 0.15) : fps > 55 ? Math.min(baseRatio, ratio + 0.1) : ratio;
+    if (next === ratio) return;
+    ratio = next; adaptAt = now;
+    renderer.setPixelRatio(ratio);
+    composer.setSize(innerWidth, innerHeight);
+  };
   const timer = new Timer();
   let stats = { calls: 0, tris: 0 };
   if (import.meta.env.DEV) renderer.info.autoReset = false;
   const tick = () => {
     requestAnimationFrame(tick);
     timer.update();
-    const dt = Math.min(timer.getDelta(), 0.05), t = timer.getElapsed();
+    const raw = timer.getDelta(), dt = Math.min(raw, 0.1), t = timer.getElapsed(); // 低幀率都要照常速度
+    adapt(raw);
     if (import.meta.env.DEV) { stats = { calls: renderer.info.render.calls, tris: renderer.info.render.triangles }; renderer.info.reset(); }
-    if (held) { holdTimer -= dt; if (holdTimer <= 0) { holdTimer = NAV.holdRepeat; act(false); } }
+    if (held && settings.holdMove) { holdTimer -= dt; if (holdTimer <= 0) { holdTimer = NAV.holdRepeat; act(false); } }
     if (!changing && level) {
       player.speedMul = level.isWater(player.pos.x, player.pos.z) ? level.theme.speedInWater : 1;
       npcs.forEach(n => n.update(dt));
@@ -446,7 +508,13 @@ async function start() {
       }
     }
     const fp = player.pos;
-    if (level) { map.reveal(fp.x, fp.z); map.update(fp.x, fp.z, mapOpen); }
+    // HUD 唔使每格更新：小地圖 5 次／秒，技能欄 10 次／秒
+    slowHud += dt;
+    if (level && slowHud > 0.1) {
+      slowHud = 0;
+      hud.skills(skills, player.buffTime);
+      if (++mapTick % 2 === 0) { map.reveal(fp.x, fp.z); map.update(fp.x, fp.z, mapOpen); }
+    }
     if (!changing && level) {
       const d = level.d, town = d.floor < 0;
       const hover = town ? null : pick(), npc = pickNpc(), stone = !npc && pickStone(), st = hover || npc || stone ? null : pickStairs();
@@ -463,7 +531,6 @@ async function start() {
     distance += (wantDistance - distance) * Math.min(1, CAMERA.zoomLerp * dt);
     place(distance);
     if (vfx.shake > 0) camera.position.add(new Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(vfx.shake * 2));
-    hud.skills(skills, player.buffTime);
     floats.update(dt, camera);
     field.update(camera, t, changing);
     pool.update(t, camera, fp);
@@ -471,6 +538,7 @@ async function start() {
     dust.update(dt, t, fp);
     debris.update(dt);
     level?.update(t);
+    if (quality.shadows && ++frame % quality.shadowEvery === 0) renderer.shadowMap.needsUpdate = true;
     composer.render(dt);
   };
   tick();
@@ -480,12 +548,13 @@ async function start() {
   if (autostart) await enter(Number(params.get('floor')) || 0, 'up');
   else {
     const disk = loadFromDisk();
-    ui.title(!!disk, newGame, () => { if (disk) resume(disk); }, loadImport);
+    const showTitle = () => ui.title(!!disk, newGame, () => { if (disk) resume(disk); }, loadImport, () => { if (disk) exportFile(disk); }, () => openSettings(showTitle));
+    showTitle();
   }
 
   if (import.meta.env.DEV) {
     Object.assign(window, { __ashen: {
-      player, camera, renderer, focus, Vector3, world, story, ui, save, map, kills: () => kills, gold: () => hero.gold,
+      sound, settings, qName, get ratio() { return ratio; }, gpuName, player, camera, renderer, focus, Vector3, world, story, ui, save, map, kills: () => kills, gold: () => hero.gold,
       skills, vfx, MONSTERS, spawn: newMonster, hero, panels, field, makeItem, reward,
       legend(id: LegendId) { const it = makeItem(Math.random, 12, 'legend', id); hero.addItem(it); return it; },
       item(r: Rarity, lv = 8) { const it = makeItem(Math.random, lv, r); hero.addItem(it); return it; }, get monsters() { return monsters; }, get level() { return level; }, get npcs() { return npcs; }, get changing() { return changing; }, get stats() { return stats; },

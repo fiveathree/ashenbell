@@ -4,16 +4,16 @@
 import { chromium } from 'playwright';
 import { appendFileSync, writeFileSync } from 'node:fs';
 
-const q = process.argv[2] || 'low', limit = Number(process.argv[3] || 55) * 60000, LOG = 'docs/playthrough.log';
+const q = process.argv[2] || 'low', limit = Number(process.argv[3] || 55) * 60000, channel = process.argv[4] || 'chrome', LOG = `docs/playthrough-${channel}.log`;
 writeFileSync(LOG, '');
 const log = s => { const l = `[${((Date.now() - t0) / 1000).toFixed(0)}s] ${s}`; console.log(l); appendFileSync(LOG, l + '\n'); };
 const t0 = Date.now();
-const b = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=d3d11', '--force_high_performance_gpu', '--enable-gpu', '--ignore-gpu-blocklist', '--mute-audio'] });
+const b = await chromium.launch({ channel, headless: true, args: ['--use-angle=d3d11', '--force_high_performance_gpu', '--enable-gpu', '--ignore-gpu-blocklist', '--mute-audio'] });
 const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
 const errs = new Set();
 p.on('console', m => { if (m.type() === 'error' && !/404|ERR_/.test(m.text())) errs.add(m.text().slice(0, 200)); });
 p.on('pageerror', e => errs.add(String(e).slice(0, 300)));
-const shot = n => p.screenshot({ path: `docs/screenshots/phase6-${n}.png` });
+const shot = n => p.screenshot({ path: `docs/screenshots/phase7-${channel}-${n}.png` });
 
 await p.goto(`http://localhost:8171/?q=${q}`);
 await p.waitForSelector('#tNew', { timeout: 90000 });

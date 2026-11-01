@@ -4,6 +4,7 @@ import { SHOP } from '../data/story';
 import { buyPrice, reforge, reforgeCost, whiteOffers } from '../items/shop';
 import type { Hero } from '../items/hero';
 import type { Item } from '../items/item';
+import type { Settings } from '../core/settings';
 
 const $ = (id: string) => document.getElementById(id)!;
 export interface Option { label: string; fn: () => void }
@@ -133,15 +134,19 @@ export class Ui {
   }
   closeScreen() { $('screen').hidden = true; this.blocking = false; }
 
-  title(hasSave: boolean, onNew: () => void, onContinue: () => void, onImport: () => void) {
+  title(hasSave: boolean, onNew: () => void, onContinue: () => void, onImport: () => void, onExport: () => void, onSettings: () => void) {
     const el = this.screen(`<div class="titlebox"><h1>燼鐘</h1><h2>ASHEN BELL</h2>
       <button class="mbtn" id="tContinue" ${hasSave ? '' : 'disabled'}>繼續</button>
       <button class="mbtn" id="tNew">新遊戲</button>
+      <button class="mbtn" id="tSettings">設定</button>
+      <button class="mbtn" id="tExport" ${hasSave ? '' : 'disabled'}>匯出存檔</button>
       <button class="mbtn" id="tImport">匯入存檔</button>
       <p id="tMsg"></p></div>`);
     let armed = false;
     $('tContinue').onclick = onContinue;
     $('tImport').onclick = onImport;
+    $('tExport').onclick = onExport;
+    $('tSettings').onclick = onSettings;
     $('tNew').onclick = () => {
       if (hasSave && !armed) { armed = true; $('tMsg').textContent = '再撳一次「新遊戲」會蓋過現有存檔'; return; }
       onNew();
@@ -176,13 +181,44 @@ export class Ui {
     };
   }
 
-  menu(onExport: () => void, onImport: () => void, onTitle: () => void) {
+  /** 設定：畫質要重新載入先生效，所以分開一粒掣 */
+  settings(s: Settings, active: string, gpu: string, onChange: () => void, onApply: () => void, onBack: () => void) {
+    const qs: [Settings['quality'], string][] = [['auto', '自動'], ['low', '低'], ['medium', '中'], ['high', '高']];
+    this.screen(`<div class="titlebox small setbox"><h2>設定</h2>
+      <div class="setrow"><span>畫質</span><div class="segs" id="setQ">${qs.map(([k, n]) => `<button class="seg ${s.quality === k ? 'on' : ''}" data-q="${k}">${n}</button>`).join('')}</div></div>
+      <p class="setnote">而家行緊：${({ low: '低', medium: '中', high: '高' } as Record<string, string>)[active]}。低畫質會關環境遮蔽同陰影。</p>
+      <p class="setnote" id="setGpu">顯示卡：${gpu}${/intel/i.test(gpu) && !/nvidia|radeon/i.test(gpu) ? '（內置顯卡，覺得窒就喺 Windows「圖形設定」將瀏覽器設做高效能）' : ''}</p>
+      <div class="setrow"><span>音量</span><input id="setVol" type="range" min="0" max="100" value="${Math.round(s.volume * 100)}"><b id="setVolT">${Math.round(s.volume * 100)}</b></div>
+      <label class="setrow"><span>按住滑鼠持續移動</span><input id="setHold" type="checkbox" ${s.holdMove ? 'checked' : ''}></label>
+      <label class="setrow"><span>反轉滾輪縮放</span><input id="setZoom" type="checkbox" ${s.invertZoom ? 'checked' : ''}></label>
+      <button class="mbtn" id="setApply" disabled>套用畫質（會重新載入）</button>
+      <button class="mbtn" id="setBack">返回</button></div>`);
+    const original = s.quality;
+    $('setQ').onclick = e => {
+      const b = (e.target as HTMLElement).closest('[data-q]') as HTMLElement | null;
+      if (!b) return;
+      s.quality = b.dataset.q as Settings['quality'];
+      $('setQ').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+      ($('setApply') as HTMLButtonElement).disabled = s.quality === original;
+      onChange();
+    };
+    const vol = $('setVol') as HTMLInputElement;
+    vol.oninput = () => { s.volume = Number(vol.value) / 100; $('setVolT').textContent = vol.value; onChange(); };
+    ($('setHold') as HTMLInputElement).onchange = e => { s.holdMove = (e.target as HTMLInputElement).checked; onChange(); };
+    ($('setZoom') as HTMLInputElement).onchange = e => { s.invertZoom = (e.target as HTMLInputElement).checked; onChange(); };
+    $('setApply').onclick = onApply;
+    $('setBack').onclick = onBack;
+  }
+
+  menu(onExport: () => void, onImport: () => void, onTitle: () => void, onSettings: () => void) {
     this.screen(`<div class="titlebox small"><h2>選單</h2>
       <button class="mbtn" id="mBack">返回遊戲</button>
+      <button class="mbtn" id="mSettings">設定</button>
       <button class="mbtn" id="mExport">匯出存檔</button>
       <button class="mbtn" id="mImport">匯入存檔</button>
       <button class="mbtn" id="mTitle">返回標題</button></div>`);
     $('mBack').onclick = () => this.closeScreen();
+    $('mSettings').onclick = onSettings;
     $('mExport').onclick = onExport;
     $('mImport').onclick = onImport;
     $('mTitle').onclick = onTitle;

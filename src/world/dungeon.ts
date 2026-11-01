@@ -2,6 +2,7 @@
 import { CELL, GEN, THEMES } from '../data/dungeon';
 import { mulberry32, randInt, type Rng } from '../core/rng';
 import { navGrid } from './nav';
+import { DECOR, HOUSES, LAMPS, SMITHY, STALL, WELL } from '../data/town';
 import { BOSS } from '../data/boss';
 import { ELITE, FLOOR_TABLE, type EliteTrait, type MonsterId } from '../data/monsters';
 
@@ -22,6 +23,7 @@ export interface Dungeon {
   down: Stairs; up: Stairs;
   torches: TorchSpot[]; props: Prop[]; pillars: Pillar[];
   spawns: Spawn[]; altars: Pos[]; chests: Pos[];
+  rects?: { minX: number; maxX: number; minZ: number; maxZ: number }[]; solids?: { x: number; z: number; r: number }[];
   waystone: Pos; relic?: Pos; pages?: Pos[]; tower?: Pos; redLights?: Pos[];
 }
 
@@ -234,13 +236,12 @@ export function townDungeon(): Dungeon {
   const torches: TorchSpot[] = [];
   for (const c of [8, 16, 20]) torches.push({ x: (c + 0.5) * CELL, z: room.y * CELL, dx: 0, dz: 1 });
   for (const r of [9, 14, 18]) torches.push({ x: room.x * CELL, z: (r + 0.5) * CELL, dx: 1, dz: 0 });
-  const props: Prop[] = [
-    { x: 15.5, z: 13.4, kind: 'barrel', rot: 0.4, scale: 1.2 }, { x: 16.8, z: 14.2, kind: 'crate', rot: 1, scale: 1.2 },
-    { x: 13.5, z: 30, kind: 'barrel', rot: 2, scale: 1.3 }, { x: 13.4, z: 31.6, kind: 'bucket', rot: 1, scale: 1.2 },
-  ];
+  const rect = (o: { x: number; z: number; w: number; d: number }) => ({ minX: o.x, maxX: o.x + o.w, minZ: o.z, maxZ: o.z + o.d });
+  const rects = [...HOUSES.map(rect), { minX: SMITHY.x, maxX: SMITHY.x + 3, minZ: SMITHY.z, maxZ: SMITHY.z + SMITHY.d }, rect({ ...STALL, d: 1.2 })];
+  const solids = [{ x: WELL.x, z: WELL.z, r: WELL.r }, ...LAMPS.map(([x, z]) => ({ x, z, r: 0.25 })), ...DECOR.filter(o => o.r).map(o => ({ x: o.x, z: o.z, r: o.r! }))];
   return {
     seed: 0, floor: -1, cols, rows, tiles, rooms: [room], down: gate, up: { c: -1, r: -1, x: -9, z: -9 },
-    torches, props, pillars: [], spawns: [], altars: [], chests: [],
+    torches, props: [], pillars: [], spawns: [], altars: [], chests: [], rects, solids,
     waystone: { x: gate.x + 4.2, z: gate.z + 3.4 }, tower: { x: 30, z: 27 },
   };
 }

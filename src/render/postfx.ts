@@ -30,7 +30,7 @@ class GradeEffect extends Effect {
   }
 }
 
-export function createComposer(renderer: WebGLRenderer, scene: Scene, camera: Camera, w: number, h: number, q: { ao: boolean; aoHalf: boolean }) {
+export function createComposer(renderer: WebGLRenderer, scene: Scene, camera: Camera, w: number, h: number, q: { ao: boolean; aoHalf: boolean; smaa: boolean }) {
   const composer = new EffectComposer(renderer, { frameBufferType: HalfFloatType });
   composer.addPass(new RenderPass(scene, camera));
 
@@ -51,11 +51,10 @@ export function createComposer(renderer: WebGLRenderer, scene: Scene, camera: Ca
   });
   const tone = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
   const vignette = new VignetteEffect({ offset: 0.3, darkness: POST.vignette });
-  composer.addPass(new EffectPass(camera, bloom, tone, new GradeEffect(), vignette));
-  composer.addPass(new EffectPass(camera, new SMAAEffect({ preset: SMAAPreset.MEDIUM })));
-
   const noise = new NoiseEffect({ blendFunction: BlendFunction.OVERLAY, premultiply: false });
   noise.blendMode.opacity.value = POST.grain * 4; // OVERLAY 對暗部影響細，要放大先見到約 0.04 嘅顆粒
-  composer.addPass(new EffectPass(camera, noise));
+  // 全部效果擠埋一個 pass，每多一個全畫面 pass 內置顯示卡都會慢好多
+  composer.addPass(new EffectPass(camera, bloom, tone, new GradeEffect(), vignette, noise));
+  if (q.smaa) composer.addPass(new EffectPass(camera, new SMAAEffect({ preset: SMAAPreset.MEDIUM })));
   return composer;
 }

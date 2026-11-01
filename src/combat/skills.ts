@@ -1,6 +1,7 @@
 import { HERO } from '../data/combat';
 import { LEGEND_FX } from '../data/items';
 import { FX, SKILLS } from '../data/skills';
+import { sound } from '../audio/sound';
 import type { Player, Target } from '../entities/player';
 import type { Monster } from '../entities/monster';
 import type { Vfx } from '../render/vfx';
@@ -57,6 +58,7 @@ export class Skills {
   private heavy(aim: Pt) {
     const s = SKILLS.heavy, p = this.p, yaw = Math.atan2(aim.x - p.pos.x, aim.z - p.pos.z);
     p.faceAndSwing(yaw, s.castTime);
+    sound.play('swing');
     this.cooldown.heavy = s.castTime;
     p.rage = Math.min(HERO.rageMax, p.rage + s.rage);
     this.pending.push({ at: s.hitAt, run: () => {
@@ -90,6 +92,7 @@ export class Skills {
     }
     if (!to) return;
     p.rage -= s.cost;
+    sound.play('charge');
     this.cooldown.charge = s.cooldown;
     p.startCharge(to, s.speed, () => {
       for (const t of this.inRadius(s.radius)) {
@@ -105,6 +108,7 @@ export class Skills {
   private roar() {
     const s = SKILLS.roar, p = this.p;
     p.rage -= s.cost;
+    sound.play('roar');
     this.cooldown.roar = s.cooldown;
     p.buffTime = s.buffTime;
     p.faceAndSwing(p.facing, 0.6);
@@ -155,6 +159,7 @@ export class Skills {
       this.tick -= dt;
       if (this.tick <= 0) {
         this.tick = s.tick;
+        sound.play('whirl');
         const hits = this.inRadius(s.radius);
         for (const t of hits) this.p.damage(t, s.mult + s.perLevel * this.lv('whirl'), false);
         this.maxWhirlHits = Math.max(this.maxWhirlHits, hits.length);

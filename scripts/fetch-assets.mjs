@@ -10,10 +10,10 @@ const TEXTURES = {
   crypt_floor: 'monastery_stone_floor', crypt_wall: 'castle_wall_slates',
   chapel_floor: 'mossy_cobblestone', chapel_wall: 'mossy_stone_wall',
   well_floor: 'stone_tiles_02', well_wall: 'rock_wall_08',
-  town_floor: 'cobblestone_floor_04', town_wall: 'plastered_stone_wall', town_wood: 'medieval_wood',
+  town_floor: 'cobblestone_floor_04', town_wall: 'plastered_stone_wall', town_wood: 'medieval_wood', town_roof: 'grey_roof_tiles',
 };
-const MODELS = ['wooden_crate_01', 'treasure_chest', 'wooden_candlestick', 'Lantern_01', 'wine_barrel_01', 'wooden_bucket_01'];
-const HEAVY = ['wooden_candlestick', 'treasure_chest', 'wooden_bucket_01'];
+const MODELS = ['WoodenTable_01', 'WoodenChair_01', 'painted_wooden_bench', 'gothic_statue', 'dead_tree_trunk', 'wooden_barrels_01', 'wooden_crate_01', 'treasure_chest', 'wooden_candlestick', 'Lantern_01', 'wine_barrel_01', 'wooden_bucket_01'];
+const HEAVY = ['gothic_statue', 'dead_tree_trunk', 'wooden_barrels_01', 'painted_wooden_bench', 'WoodenChair_01', 'WoodenTable_01', 'wooden_candlestick', 'treasure_chest', 'wooden_bucket_01'];
 const SOLDIER = 'https://raw.githubusercontent.com/mrdoob/three.js/r170/examples/models/gltf/Soldier.glb';
 
 async function get(url, path) {

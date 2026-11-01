@@ -6,6 +6,7 @@ import type { Hero, Stats } from '../items/hero';
 import { HERO, NAV } from '../data/combat';
 import { rollDamage } from '../combat/damage';
 import { SKILLS } from '../data/skills';
+import { sound } from '../audio/sound';
 import type { Grid, Pt } from '../world/grid';
 
 /** 主角攻擊得到嘅嘢：怪物或者可打破道具 */
@@ -222,6 +223,7 @@ export class Player {
       if (g.pos.distanceTo(this.pos) <= HERO.attackRange) {
         this.path = [];
         this.swing = 0; this.struck = false;
+        sound.play('swing');
         return 'Idle';
       }
       this.repath -= dt;

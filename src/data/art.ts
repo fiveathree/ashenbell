@@ -36,11 +36,11 @@ export const LIGHT = {
   fogDensity: 0.045,
 };
 
-/** 畫質：Phase 7 先有選單，而家用網址 ?q=low|medium|high 切換 */
+/** 畫質：設定選單揀，網址 ?q=low|medium|high 可以蓋過（測試用） */
 export const QUALITY = {
-  low: { ao: false, aoHalf: true, shadows: false, ghoulShadows: false, shadowMap: 512, pixelRatio: 0.75, maxTorches: 4 },
-  medium: { ao: true, aoHalf: true, shadows: true, ghoulShadows: false, shadowMap: 1024, pixelRatio: 1, maxTorches: 6 },
-  high: { ao: true, aoHalf: false, shadows: true, ghoulShadows: true, shadowMap: 2048, pixelRatio: 1.5, maxTorches: 8 },
+  low: { smaa: false, shadowEvery: 1, ao: false, aoHalf: true, shadows: false, ghoulShadows: false, shadowMap: 512, pixelRatio: 0.75, maxTorches: 3 },
+  medium: { smaa: true, shadowEvery: 3, ao: true, aoHalf: true, shadows: true, ghoulShadows: false, shadowMap: 1024, pixelRatio: 1, maxTorches: 4 },
+  high: { smaa: true, shadowEvery: 1, ao: true, aoHalf: false, shadows: true, ghoulShadows: true, shadowMap: 2048, pixelRatio: 1.5, maxTorches: 8 },
 };
 export type QualityName = keyof typeof QUALITY;
 

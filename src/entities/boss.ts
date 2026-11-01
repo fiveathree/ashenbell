@@ -2,6 +2,7 @@ import { Color, type Scene } from 'three';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { BOSS } from '../data/boss';
 import { Monster, type MonsterEvents } from './monster';
+import { sound } from '../audio/sound';
 import type { Player } from './player';
 import type { Grid } from '../world/grid';
 import type { Vfx } from '../render/vfx';
@@ -51,6 +52,7 @@ export class Boss extends Monster {
     this.phase = p;
     this.state = 'stagger'; this.timer = BOSS.phaseStagger;
     this.fx.ring(this.pos.x, this.pos.z, 7, 0x8a1010);
+    sound.play('roar');
     this.fx.bump(0.25);
     if (p === 2) this.bev.line(BOSS.lines.phase2);
     if (p === 3) {
@@ -92,6 +94,7 @@ export class Boss extends Monster {
       if (this.bellIn <= 0) {
         this.bellIn = BOSS.bellEvery;
         this.wave = { r: 0, hit: false };
+        sound.play('bell');
         this.fx.ring(this.pos.x, this.pos.z, BOSS.bellRange, 0xc8b89a, BOSS.bellRange / BOSS.bellSpeed);
         this.fx.bump(0.2);
       }
@@ -105,6 +108,7 @@ export class Boss extends Monster {
       r.left -= dt;
       if (r.left > 0) continue;
       this.fx.ring(r.x, r.z, BOSS.runeRadius * 1.3, 0xd9771f);
+      sound.play('rune');
       this.fx.bump(0.14);
       if (Math.hypot(player.pos.x - r.x, player.pos.z - r.z) < BOSS.runeRadius) player.hurt(this.dmg * BOSS.runeMult);
       this.runes.splice(i, 1);

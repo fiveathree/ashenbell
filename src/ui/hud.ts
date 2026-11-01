@@ -8,7 +8,7 @@ const html = `
   <div class="gold">金幣 <b id="gold">0</b></div>
   <div class="mini"><canvas id="mini" width="220" height="220"></canvas><div class="floorname" id="floorName"></div></div>
   <canvas class="bigmap" id="bigmap" width="1100" height="700" hidden></canvas>
-  <div class="loading" id="lvLoad" hidden><h2 id="lvName"></h2></div>
+  <div class="loading" id="lvLoad" hidden><h2 id="lvName"></h2><div class="lvbar"><i id="lvFill"></i></div></div>
   <div class="bossbar" id="bossBar" hidden><div class="bname" id="bossName"></div><div class="bbar"><i id="bossFill"></i><b class="m7"></b><b class="m35"></b></div></div>
   <div class="bossline" id="bossLine" hidden></div>
   <div class="target" id="target" hidden><div class="tname" id="tname"></div><div class="tbar"><i id="tfill"></i></div></div>
@@ -76,6 +76,7 @@ export class Hud {
   }
   floor(name: string) { $('floorName').textContent = name; }
   loading(name: string | null) { $('lvLoad').hidden = !name; if (name) $('lvName').textContent = name; }
+  loadProgress(p: number) { $('lvFill').style.width = `${p * 100}%`; }
   showMap(on: boolean) { this.big.hidden = !on; }
 
   update(hp: number, maxHp: number, rage: number, rageMax: number, quest: string, dead: boolean) {

@@ -32,6 +32,7 @@ export class LootField {
   drops: Drop[] = [];
   private root: HTMLDivElement;
   showAll = false;
+  private rowH = 22; // 唔好每格量 offsetHeight，會迫瀏覽器重新排版
   onClick: ((d: Drop) => void) | null = null;
 
   constructor(private scene: Scene) {
@@ -94,7 +95,7 @@ export class LootField {
       if (!vis || v.z > 1) { d.label.style.display = 'none'; continue; }
       let x = (v.x + 1) / 2 * innerWidth, y = (1 - v.y) / 2 * innerHeight;
       d.label.style.display = '';
-      const h = d.label.offsetHeight + 2 || 20;
+      const h = this.rowH;
       for (let i = 0; i < 8 && used.some(u => Math.abs(u[0] - x) < 90 && Math.abs(u[1] - y) < h); i++) y -= h;
       used.push([x, y]);
       d.label.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%)`;
