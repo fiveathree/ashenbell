@@ -240,3 +240,10 @@ GitHub Pages 原本直接放原始碼，所以線上黑畫面。加咗 `.github/
 - 寶箱之前只係擺設，而家撳佢行過去會揭蓋，必掉一件魔法或稀有裝備加金幣，一半機會有藥水；開過嘅寶箱存檔會記住，唔可以再開。
 - 技能欄加「跑」掣，亦可以撳 R，開咗之後短距離都用跑，設定會記住。
 - 驗收：`node scripts/chest-check.mjs`。截圖：`docs/screenshots/chest-open.png`、`docs/screenshots/run-button.png`。
+
+## 真人模型取代 Soldier（2026-11-02）
+- 用戶唔開 Adobe 帳戶，所以唔用 Mixamo。11 個角色全部由 MakeHuman CC0 人體喺 Blender 生成，動作用 Quaternius CC0 動作庫轉接，舊嘅 Soldier 同程式轉骨頭已刪。
+- 重新生成：`sh scripts/make-all-characters.sh`（工具放 C:/ashenbell-tools，唔入 repo）。
+- 驗收：`node scripts/model-check.mjs`、`node scripts/floors-check.mjs`、`node scripts/playthrough.mjs medium 4 chrome`（44 殺、0 錯誤）。
+- 同線上舊版比較，1080p 中畫質約 31–40 FPS 對 39 FPS，未見明顯倒退，但數字有波動。
+- 限制：骷髏戰士同弓手係乾屍人形，唔係真骨架。截圖：`docs/screenshots/model-roster.png`、`docs/screenshots/model-fight.png`。

@@ -13,7 +13,7 @@
    - 唯一例外：碰撞範圍、除錯輔助線（要喺正式版隱藏）。
 2. **建築（地板、牆、柱、樓梯）**可以用簡單幾何體，但**必須**貼寫實 PBR 材質（albedo + normal + roughness，最好加 AO），並且有倒角或邊緣細節。唔准用純色材質。
 3. 角色比例寫實（約 7 頭身），唔准大頭細身、唔准卡通描邊、唔准高飽和色。
-4. 唔准用 Kenney、Quaternius、Synty 或任何 low-poly 卡通素材。
+4. 唔准用 Kenney、Quaternius、Synty 或任何 low-poly 卡通素材。（用戶 2026-11-02 批准例外：可以用 Quaternius 嘅 CC0 動作數據，模型仍然唔准。）
 5. 唔准用 SVG 扁平圖示做 UI 主視覺（例如 game-icons.net 嗰種剪影）。
 6. 畫面要**暗**：大部分範圍接近全黑，靠火光同主角光源照明。
 7. 每個 Phase 完成要用 Playwright 截圖存入 `docs/screenshots/phaseN-*.png`，自己對照第 4 節「美術規格」檢查。唔夠暗、唔夠寫實、似 Q 版 → 該 Phase 唔算完成。
@@ -153,7 +153,7 @@ ashenbell/
 ### 5.1 來源
 | 類別 | 來源 | 授權 |
 |---|---|---|
-| 主角、怪物、NPC 模型同動作 | Mixamo（mixamo.com，需 Adobe 帳號，免費） | 可免費用於遊戲 |
+| 主角、怪物、NPC 模型同動作 | MakeHuman + MPFB + Blender 生成，動作用 Quaternius UAL（用戶唔開 Adobe 帳號，唔用 Mixamo） | CC0 |
 | 地板牆身材質、部分道具模型 | Poly Haven（polyhaven.com）、ambientCG | CC0 |
 | 怪物補充／Boss | AI 圖生 3D（Meshy、Tripo、混元3D） | 視乎平台條款 |
 | 裝備圖示、NPC 頭像、載入畫面 | AI 生圖 | 視乎平台條款 |

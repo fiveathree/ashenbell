@@ -14,7 +14,6 @@ const TEXTURES = {
 };
 const MODELS = ['WoodenTable_01', 'WoodenChair_01', 'painted_wooden_bench', 'gothic_statue', 'dead_tree_trunk', 'wooden_barrels_01', 'wooden_crate_01', 'treasure_chest', 'wooden_candlestick', 'Lantern_01', 'wine_barrel_01', 'wooden_bucket_01'];
 const HEAVY = ['gothic_statue', 'dead_tree_trunk', 'wooden_barrels_01', 'painted_wooden_bench', 'WoodenChair_01', 'WoodenTable_01', 'wooden_candlestick', 'treasure_chest', 'wooden_bucket_01'];
-const SOLDIER = 'https://raw.githubusercontent.com/mrdoob/three.js/r170/examples/models/gltf/Soldier.glb';
 
 async function get(url, path) {
   if (existsSync(path)) return;
@@ -55,5 +54,4 @@ for (const id of MODELS) {
     }
   }
 }
-await get(SOLDIER, join(OUT, 'models', 'soldier.glb'));
 for (const old of ['floor', 'wall']) rmSync(join(OUT, 'textures', old), { recursive: true, force: true });

@@ -37,6 +37,8 @@ import { bossDungeon, generate, townDungeon, type Stairs } from './world/dungeon
 import { Boss } from './entities/boss';
 import { BOSS, ENDING } from './data/boss';
 import { Breakable, Chest, Level } from './world/level';
+import { loadModel } from './entities/models';
+import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { navGrid } from './world/nav';
 
 const params = new URLSearchParams(location.search);
@@ -104,6 +106,7 @@ async function start() {
   const debris = new Debris(scene);
 
   const hero = new Hero(), story = new Story();
+  const models: Record<string, GLTF> = {};
   const player = new Player(scene, navGrid(townDungeon()), quality, hero);
   await player.load();
   const world: WorldState = { seed: newSeed(), floor: -1, waypoints: [-1], cleared: {}, broken: {}, opened: {}, explored: {} };
@@ -135,8 +138,8 @@ async function start() {
 
   const newMonster = (type: MonsterId, x: number, z: number, mLevel: number, traits: EliteTrait[] = []) => {
     const m = type === 'abbot'
-      ? new Boss(scene, player.gltf, lv().grid, x, z, mLevel, quality.shadows, events, vfx, { line: t => { hud.bossLine(t); lineLeft = BOSS.lineTime; } })
-      : new Monster(scene, player.gltf, lv().grid, type, x, z, mLevel, traits, quality.ghoulShadows, events);
+      ? new Boss(scene, models.abbot, lv().grid, x, z, mLevel, quality.shadows, events, vfx, { line: t => { hud.bossLine(t); lineLeft = BOSS.lineTime; } })
+      : new Monster(scene, models[type], lv().grid, type, x, z, mLevel, traits, quality.ghoulShadows, events);
     monsters.push(m);
     return m;
   };
@@ -258,13 +261,16 @@ async function start() {
     npcs.forEach(n => n.remove()); npcs = [];
     await new Promise(r => setTimeout(r, 30));
     const d = floor < 0 ? townDungeon() : floor === 3 ? bossDungeon() : generate(world.seed, floor);
+    // 呢層用到先載入；屍鬼隨時會俾修士召喚
+    const need = floor < 0 ? (Object.keys(NPCS) as NpcId[]).map(id => `npc_${id}`) : ['ghoul', ...new Set(d.spawns.map(s => s.type))];
+    await Promise.all(need.map(async n => { models[n] = await loadModel(n); }));
     level = await new Level(scene, d, aniso, quality.shadows, smash, world.broken[floor], world.opened[floor]).build();
     player.grid = lv().grid;
     pool.set(lv().fires);
     monsters = [];
     const dead = world.cleared[floor] ?? [];
     d.spawns.forEach((s, i) => { if (!dead.includes(i)) newMonster(s.type, s.x, s.z, s.level, s.traits).index = i; });
-    if (floor < 0) npcs = (Object.keys(NPCS) as NpcId[]).map(id => new Npc(scene, player.gltf, id));
+    if (floor < 0) npcs = (Object.keys(NPCS) as NpcId[]).map(id => new Npc(scene, models[`npc_${id}`], id));
     if (d.relic && !story.relic) field.addStory(d.relic.x, d.relic.z, '失蹤者遺物', { kind: 'relic', i: 0 });
     (monsters.find(m => m instanceof Boss) as Boss | undefined)?.start();
     d.pages?.forEach((p, i) => { if (!story.pages[i]) field.addStory(p.x, p.z, `院長日記 第 ${i + 1} 頁`, { kind: 'page', i }); });

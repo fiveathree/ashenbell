@@ -28,10 +28,10 @@ export const QUEST_TEXT = [
 
 export type NpcId = 'ge' | 'dala' | 'herb';
 
-export const NPCS: Record<NpcId, { name: string; title: string; x: number; z: number; tint: number }> = {
-  ge: { name: '老葛', title: '守夜人', x: 25, z: 21, tint: 0x6d604c },
-  dala: { name: '妲拉', title: '鐵匠', x: 20.5, z: 28, tint: 0x7a5a42 },
-  herb: { name: '草藥婆', title: '草藥師', x: 46, z: 32, tint: 0x4d4a58 },
+export const NPCS: Record<NpcId, { name: string; title: string; x: number; z: number }> = {
+  ge: { name: '老葛', title: '守夜人', x: 25, z: 21 },
+  dala: { name: '妲拉', title: '鐵匠', x: 20.5, z: 28 },
+  herb: { name: '草藥婆', title: '草藥師', x: 46, z: 32 },
 };
 
 /** 老葛每個階段講咩；advance = 講完推進任務 */

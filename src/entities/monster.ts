@@ -1,11 +1,10 @@
-import { AnimationAction, AnimationClip, AnimationMixer, Color, Group, Mesh, MeshStandardMaterial, Scene } from 'three';
+import { AnimationAction, AnimationClip, AnimationMixer, Color, Group, LoopOnce, Mesh, MeshStandardMaterial, Scene } from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { AI, ELITE, MONSTERS, type EliteTrait, type MonsterDef, type MonsterId } from '../data/monsters';
 import { rollDamage } from '../combat/damage';
 import type { Grid, Pt } from '../world/grid';
 import type { Player } from './player';
-import { applySwing, fallAngle, findBones, type SwingBones } from './pose';
 
 type State = 'idle' | 'chase' | 'attack' | 'stagger' | 'stun' | 'fear' | 'windup' | 'lurk' | 'rise' | 'dead';
 
@@ -39,10 +38,9 @@ export class Monster {
   private speed: number;
   private attackTime: number;
   private mixer: AnimationMixer;
-  private idle: AnimationAction;
-  private walk: AnimationAction;
+  private anim: Record<'Idle' | 'Walk' | 'Attack' | 'Hit' | 'Death', AnimationAction>;
+  private now: AnimationAction;
   protected mats: MeshStandardMaterial[] = [];
-  private bones: SwingBones;
   private path: Pt[] = [];
   protected timer = 0;
   private repath = 0;
@@ -50,7 +48,6 @@ export class Monster {
   private flash = 0;
   private deadFor = 0;
   protected yaw = Math.random() * Math.PI * 2;
-  private walking = false;
   private casterIn = AI.caster.summonEvery * 0.5;
   private fled = false;
   private backing = 0;
@@ -77,12 +74,10 @@ export class Monster {
     this.model.scale.setScalar(def.scale * (elite ? ELITE.scaleMult : 1));
     this.model.position.set(x, 0, z);
     this.model.rotation.y = this.yaw;
-    const tint = new Color(def.tint);
     this.model.traverse(o => {
       const m = o as Mesh;
       if (!m.isMesh) return;
       const mat = (m.material as MeshStandardMaterial).clone();
-      mat.color.copy(tint);
       mat.emissive.copy(WHITE);
       mat.emissiveIntensity = 0;
       m.material = mat;
@@ -92,15 +87,14 @@ export class Monster {
       m.frustumCulled = false;
     });
     scene.add(this.model);
-    this.bones = findBones(this.model);
     this.mixer = new AnimationMixer(this.model);
-    this.idle = this.mixer.clipAction(AnimationClip.findByName(src.animations, 'Idle')!);
-    this.walk = this.mixer.clipAction(AnimationClip.findByName(src.animations, 'Walk')!);
-    this.idle.play(); this.walk.play();
-    this.idle.time = Math.random() * this.idle.getClip().duration;
-    this.walk.time = Math.random() * this.walk.getClip().duration;
-    this.walk.timeScale = def.clipSpeed;
-    this.walk.weight = 0;
+    const clip = (n: string) => this.mixer.clipAction(AnimationClip.findByName(src.animations, n)!);
+    this.anim = { Idle: clip('Idle'), Walk: clip('Walk'), Attack: clip('Attack'), Hit: clip('Hit'), Death: clip('Death') };
+    for (const a of [this.anim.Attack, this.anim.Hit, this.anim.Death]) { a.setLoop(LoopOnce, 1); a.clampWhenFinished = true; }
+    this.anim.Walk.timeScale = def.clipSpeed;
+    this.anim.Idle.time = Math.random() * this.anim.Idle.getClip().duration;
+    this.now = this.anim.Idle;
+    this.now.play();
     if (def.ai === 'lurker') { this.state = 'lurk'; this.model.position.y = -1.9; this.model.visible = false; }
   }
 
@@ -115,7 +109,8 @@ export class Monster {
     this.flash = 1;
     this.ev.hit(this, amount, crit);
     if (this.hp === 0) {
-      this.state = 'dead'; this.deadFor = 0; this.setWalk(false);
+      this.state = 'dead'; this.deadFor = 0;
+      this.show(this.anim.Death, AI.corpseTime);
       this.ev.died(this);
       return;
     }
@@ -138,12 +133,14 @@ export class Monster {
 
   reset() { if (!this.dead && !this.hidden) { this.state = 'idle'; this.path = []; } }
 
-  private setWalk(on: boolean) {
-    if (on === this.walking) return;
-    this.walking = on;
-    (on ? this.idle : this.walk).crossFadeTo(on ? this.walk : this.idle, 0.2, false);
-    (on ? this.walk : this.idle).enabled = true;
-    (on ? this.walk : this.idle).setEffectiveWeight(1);
+  /** 轉動作；time = 一次過嘅動作要幾耐做完 */
+  private show(a: AnimationAction, time = 0) {
+    if (a === this.now) return;
+    const speed = time ? a.getClip().duration / time : a === this.anim.Walk ? this.def.clipSpeed : 1;
+    if (a.loop === LoopOnce) a.reset();
+    a.setEffectiveWeight(1).setEffectiveTimeScale(speed).play();
+    this.now.crossFadeTo(a, 0.15, false);
+    this.now = a;
   }
 
   private follow(dt: number, others: Monster[], player: Player, mul = 1) {
@@ -278,13 +275,14 @@ export class Monster {
         break;
     }
 
-    const want = this.yaw + Math.PI;
+    const want = this.yaw;
     const diff = Math.atan2(Math.sin(want - this.model.rotation.y), Math.cos(want - this.model.rotation.y));
     this.model.rotation.y += diff * Math.min(1, 8 * dt);
-    this.setWalk(moving);
+    if (this.state === 'attack') this.show(this.anim.Attack, this.attackTime);
+    else if (this.state === 'windup') this.show(this.anim.Attack, AI.heavy.windup);
+    else if (this.state === 'stagger' || this.state === 'stun') this.show(this.anim.Hit, AI.stagger);
+    else this.show(moving ? this.anim.Walk : this.anim.Idle);
     this.mixer.update(dt);
-    if (this.state === 'attack') applySwing(this.bones, Math.min(1, this.timer), 0.8);
-    if (this.state === 'windup') applySwing(this.bones, Math.min(1, this.timer) * 0.4, 1.2);
   }
 
   /** 修士：定時召喚屍鬼、治療低血同伴 */
@@ -299,7 +297,6 @@ export class Monster {
   private updateDead(dt: number) {
     this.deadFor += dt;
     this.mixer.update(dt);
-    this.model.rotation.x = fallAngle(this.deadFor / 0.6);
     if (this.deadFor >= AI.corpseTime) this.remove();
   }
 }

@@ -1,0 +1,30 @@
+<!doctype html><meta charset=utf-8><title>角色檢查</title>
+<style>body{margin:0;background:#2a2622}</style>
+<script type=importmap>{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+<script type=module>
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone } from 'three/addons/utils/SkeletonUtils.js';
+const q = new URLSearchParams(location.search), file = q.get('m') ?? 'hero.glb', cols = 6;
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+r.setSize(innerWidth, innerHeight); r.toneMapping = THREE.ACESFilmicToneMapping; document.body.append(r.domElement);
+const s = new THREE.Scene(); s.background = new THREE.Color(0x35302a);
+s.add(new THREE.HemisphereLight(0xffffff, 0x554433, 1.6));
+const d = new THREE.DirectionalLight(0xffeedd, 2.2); d.position.set(3, 6, 5); s.add(d);
+const g = await new GLTFLoader().loadAsync('assets/models/' + file);
+if (q.get('roster')) { const ids = q.get('roster').split(','); const L = new GLTFLoader(); const all = await Promise.all(ids.map(i => L.loadAsync('assets/models/' + i + '.glb'))); const c2 = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, .1, 100); c2.position.set((ids.length - 1) * .55, 1.4, 15); c2.lookAt((ids.length - 1) * .55, 1, 0); all.forEach((a, i) => { const o = a.scene; o.position.x = i * 1.1; o.rotation.y = .35; s.add(o); const m = new THREE.AnimationMixer(o); m.clipAction(a.animations.find(x => x.name === 'Idle')).play(); m.setTime(.3); }); r.render(s, c2); window.__ok = { ids }; throw 0; }
+const names = g.animations.map(a => a.name);
+const box = new THREE.Box3().setFromObject(g.scene);
+const cam = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, .1, 100);
+const rows = Math.ceil((names.length + 1) / cols), W = 1.6, H = 2.1;
+cam.position.set((cols - 1) * W / 2, 1 - (rows - 1) * H / 2 + .9, Math.max(cols * W, rows * H * cam.aspect) * 1.9);
+cam.lookAt((cols - 1) * W / 2, 1 - (rows - 1) * H / 2, 0);
+const ms = [];
+[null, ...names].forEach((n, i) => {
+  const o = clone(g.scene); o.position.set(i % cols * W, -Math.floor(i / cols) * H, 0); o.rotation.y = q.get('back') ? Math.PI : .5; s.add(o);
+  if (n) { const m = new THREE.AnimationMixer(o); const c = g.animations.find(a => a.name === n); const ac = m.clipAction(c); ac.play(); m.setTime(c.duration * .45); ms.push(m); }
+});
+if (q.get('zoom')) { const v = q.get('zoom').split(',').map(Number); cam.position.set(v[0], v[1], v[2]); cam.lookAt(v[0], v[1], 0); cam.fov = 12; cam.updateProjectionMatrix(); }
+r.render(s, cam);
+window.__ok = { names, box: [box.min.toArray(), box.max.toArray()] };
+</script>

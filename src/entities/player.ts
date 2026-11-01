@@ -1,5 +1,5 @@
-import { AnimationAction, AnimationClip, AnimationMixer, Group, Mesh, PointLight, Scene } from 'three';
-import { GLTF, GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { AnimationAction, AnimationClip, AnimationMixer, Group, LoopOnce, Mesh, PointLight, Scene } from 'three';
+import { loadModel } from './models';
 import { LIGHT, PLAYER } from '../data/art';
 import { LEGEND_FX } from '../data/items';
 import type { Hero, Stats } from '../items/hero';
@@ -17,13 +17,12 @@ export interface Target {
   dead: boolean;
   takeHit(amount: number, crit: boolean): void;
 }
-import { applySwing, fallAngle, findBones, type SwingBones } from './pose';
 
-type Clip = 'Idle' | 'Walk' | 'Run';
+type Clip = 'Idle' | 'Walk' | 'Run' | 'Attack1' | 'Attack2' | 'Dash' | 'Death';
+const ONCE: Clip[] = ['Attack1', 'Attack2', 'Dash', 'Death'];
 
 export class Player {
   model!: Group;
-  gltf!: GLTF;
   light: PointLight;
   s: Stats;
   hp: number;
@@ -52,7 +51,7 @@ export class Player {
   private actions = {} as Record<Clip, AnimationAction>;
   private current: Clip = 'Idle';
   private yaw = 0;
-  private bones: SwingBones = {};
+  private swingClip: Clip = 'Attack1';
   private swing = -1; // -1 = 冇揮緊
   private struck = false;
   private repath = 0;
@@ -73,20 +72,20 @@ export class Player {
   }
 
   async load() {
-    this.gltf = await new GLTFLoader().loadAsync('assets/models/soldier.glb');
-    this.model = this.gltf.scene;
+    const gltf = await loadModel('hero');
+    this.model = gltf.scene;
     this.model.rotation.order = 'YXZ';
     this.model.traverse(o => {
       const m = o as Mesh;
       if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; }
     });
     this.scene.add(this.model);
-    this.bones = findBones(this.model);
     this.mixer = new AnimationMixer(this.model);
-    for (const name of ['Idle', 'Walk', 'Run'] as Clip[]) {
-      this.actions[name] = this.mixer.clipAction(AnimationClip.findByName(this.gltf.animations, name)!);
-      this.actions[name].play();
-      this.actions[name].weight = name === 'Idle' ? 1 : 0;
+    for (const name of ['Idle', 'Walk', 'Run', ...ONCE] as Clip[]) {
+      const a = this.actions[name] = this.mixer.clipAction(AnimationClip.findByName(gltf.animations, name)!);
+      if (ONCE.includes(name)) { a.setLoop(LoopOnce, 1); a.clampWhenFinished = true; }
+      else a.play();
+      a.weight = name === 'Idle' ? 1 : 0;
     }
     this.place(0, 1);
   }
@@ -130,6 +129,7 @@ export class Player {
   /** 技能揮一下：唔做普攻判定，傷害由技能自己計 */
   faceAndSwing(yaw: number, time: number) {
     this.yaw = yaw; this.swing = 0; this.struck = true; this.recover = time;
+    this.nextSwing();
     this.attackTarget = null; this.path = [];
   }
 
@@ -171,17 +171,22 @@ export class Player {
     this.dead = false;
     this.hp = this.s.maxHp;
     this.rage = 0;
-    this.model.rotation.x = 0;
+    this.setClip('Idle');
     this.place(x, z);
   }
 
-  private setClip(next: Clip) {
+  /** 兩招輪住用，唔會次次一樣 */
+  private nextSwing() { this.swingClip = this.swingClip === 'Attack1' ? 'Attack2' : 'Attack1'; }
+
+  /** time = 一次過嘅動作要幾耐做完 */
+  private setClip(next: Clip, time = 0) {
     if (next === this.current) return;
     const from = this.actions[this.current], to = this.actions[next];
+    if (ONCE.includes(next)) to.reset().play();
     to.enabled = true;
-    to.setEffectiveTimeScale(1);
+    to.setEffectiveTimeScale(time ? to.getClip().duration / time : 1);
     to.setEffectiveWeight(1);
-    from.crossFadeTo(to, PLAYER.fade, true);
+    from.crossFadeTo(to, ONCE.includes(next) ? 0.08 : PLAYER.fade, false);
     this.current = next;
   }
 
@@ -216,16 +221,17 @@ export class Player {
         this.struck = true;
         if (g && !g.dead && g.pos.distanceTo(this.pos) < HERO.attackRange + 0.5) this.strike(g);
       }
-      if (this.swing >= 1) { this.swing = -1; this.recover = 0; }
-      return 'Idle';
+      if (this.swing >= 1) { this.swing = -1; this.recover = 0; return 'Idle'; }
+      return this.swingClip;
     }
     if (g && g.dead) this.attackTarget = null;
     else if (g) {
       if (g.pos.distanceTo(this.pos) <= HERO.attackRange) {
         this.path = [];
         this.swing = 0; this.struck = false;
+        this.nextSwing();
         sound.play('swing');
-        return 'Idle';
+        return this.swingClip;
       }
       this.repath -= dt;
       if (this.repath <= 0) { this.repath = NAV.repath; this.path = this.grid.findPath(this.pos, g.pos); }
@@ -245,7 +251,7 @@ export class Player {
       return 'Idle';
     }
     this.pos.x += dx / d * step; this.pos.z += dz / d * step;
-    return 'Run';
+    return 'Dash';
   }
 
   update(dt: number) {
@@ -254,9 +260,8 @@ export class Player {
     if (this.sinceCombat > HERO.outOfCombat) this.rage = Math.max(0, this.rage - HERO.rageDecay * dt);
     if (this.dead) {
       this.deadFor += dt;
-      this.setClip('Idle');
+      this.setClip('Death');
       this.mixer.update(dt);
-      this.model.rotation.x = fallAngle(this.deadFor / 0.7);
       this.syncLight();
       return;
     }
@@ -266,13 +271,12 @@ export class Player {
     const clip = this.charging ? this.rush(dt) : this.spinning ? this.walk(dt) : this.fight(dt);
     if (this.spinning) this.model.rotation.y += 16 * dt;
     else {
-      const want = this.yaw + Math.PI;
+      const want = this.yaw;
       const diff = Math.atan2(Math.sin(want - this.model.rotation.y), Math.cos(want - this.model.rotation.y));
       this.model.rotation.y += diff * Math.min(1, PLAYER.turnLerp * dt);
     }
-    this.setClip(clip);
+    this.setClip(clip, this.swing >= 0 ? this.recover || HERO.attackTime / (1 + this.s.atkSpeed / 100) : clip === 'Dash' ? 0.5 : 0);
     this.mixer.update(dt);
-    if (this.swing >= 0) applySwing(this.bones, Math.min(1, this.swing));
     this.syncLight();
   }
 }
