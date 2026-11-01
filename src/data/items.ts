@@ -87,6 +87,17 @@ export const DROP = {
   startPotions: 3,
 };
 
+/** 寶箱：必有一件魔法以上裝備，另加金幣，有機會有藥水 */
+export const CHEST = {
+  rareChance: 0.25,
+  goldPerLevel: [4, 9] as [number, number],
+  potionChance: 0.5,
+  reach: 1.1,     // 滑鼠指幾近算指住
+  openReach: 2.2, // 行到幾近就打開
+  lidAngle: 1.85, // 蓋揭開幾多弧度
+  lidTime: 0.45,
+};
+
 /** 經驗（PLAN.md 第 6.2 節） */
 export const LEVELING = {
   max: 15,

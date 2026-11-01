@@ -13,6 +13,7 @@ export interface WorldState {
   waypoints: number[];
   cleared: Record<number, number[]>; // 每層已死怪物 index
   broken: Record<number, number[]>;  // 每層已打破道具 index
+  opened: Record<number, number[]>;  // 每層已開寶箱 index
   explored: Record<number, string>;  // 小地圖，0/1 字串
 }
 

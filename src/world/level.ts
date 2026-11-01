@@ -9,6 +9,7 @@ import type { Fire } from '../render/torch';
 import { LIGHT, PALETTE } from '../data/art';
 import { CELL, themeOf, WALL, type Theme } from '../data/dungeon';
 import { NAV } from '../data/combat';
+import { CHEST } from '../data/items';
 import { DECOR, HOUSES, LAMPS, SMITHY, STALL, WELL } from '../data/town';
 import { T, type Dungeon, type Prop } from './dungeon';
 import { navGrid, PROP_RADIUS } from './nav';
@@ -116,15 +117,39 @@ export class Breakable {
   takeHit() { if (!this.dead) { this.dead = true; this.onBreak(this); } }
 }
 
+/** 寶箱：撳佢行過去打開，蓋揭開之後留喺度 */
+export class Chest {
+  opened = false;
+  private from = -1; // 開始揭蓋嘅時間，負數 = 冇動緊
+  private lid: Object3D;
+  constructor(model: Object3D, public x: number, public z: number, public index: number) {
+    this.lid = model.getObjectByName('treasure_chest_lid')!;
+    // 鎖扣跟住個蓋揭起
+    const lock = model.getObjectByName('treasure_chest_lock')!;
+    lock.position.sub(this.lid.position);
+    this.lid.add(lock);
+  }
+  open(t: number) { this.opened = true; this.from = t; }
+  /** 讀存檔：一開始就係開咗 */
+  setOpen() { this.opened = true; this.lid.rotation.x = -CHEST.lidAngle; }
+  update(t: number) {
+    if (this.from < 0) return;
+    const k = Math.min(1, (t - this.from) / CHEST.lidTime);
+    this.lid.rotation.x = -CHEST.lidAngle * k * (2 - k);
+    if (k === 1) this.from = -1;
+  }
+}
+
 export class Level {
   root = new Group();
   grid!: Grid;
   fires: Fire[] = [];
   breakables: Breakable[] = [];
+  chests: Chest[] = [];
   theme: Theme;
   private water: Mesh | null = null;
 
-  constructor(private scene: Scene, public d: Dungeon, private aniso: number, private shadows: boolean, private onBreak: (b: Breakable) => void, private broken: number[] = []) {
+  constructor(private scene: Scene, public d: Dungeon, private aniso: number, private shadows: boolean, private onBreak: (b: Breakable) => void, private broken: number[] = [], private opened: number[] = []) {
     this.theme = themeOf(d.floor);
   }
 
@@ -268,7 +293,11 @@ export class Level {
       const o = this.clone(byKind[p.kind], p.x, 0, p.z, p.scale, p.rot);
       if (d.floor >= 0) this.breakables.push(new Breakable(o, p, i, this.onBreak));
     });
-    for (const c of d.chests) this.clone(chest, c.x, 0.21, c.z, 1.25, 0.4);
+    d.chests.forEach((c, i) => {
+      const box = new Chest(this.clone(chest, c.x, 0.21, c.z, 1.25, 0.4), c.x, c.z, i);
+      if (this.opened.includes(i)) box.setOpen();
+      this.chests.push(box);
+    });
 
     for (const t of d.torches) {
       const x = t.x + t.dx * 0.32, z = t.z + t.dz * 0.32;
@@ -396,6 +425,7 @@ export class Level {
 
   update(t: number) {
     runeMat.uniforms.t.value = t;
+    for (const c of this.chests) c.update(t);
   }
 
   dispose() {

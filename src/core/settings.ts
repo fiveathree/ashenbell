@@ -1,9 +1,9 @@
 // 玩家設定（畫質、音量、滑鼠），獨立於存檔，開新遊戲都唔會冇
 export type QualitySetting = 'auto' | 'low' | 'medium' | 'high';
-export interface Settings { quality: QualitySetting; volume: number; holdMove: boolean; invertZoom: boolean }
+export interface Settings { quality: QualitySetting; volume: number; holdMove: boolean; invertZoom: boolean; alwaysRun: boolean }
 
 const KEY = 'ashenbell-settings-v1';
-const DEFAULT: Settings = { quality: 'auto', volume: 0.7, holdMove: true, invertZoom: false };
+const DEFAULT: Settings = { quality: 'auto', volume: 0.7, holdMove: true, invertZoom: false, alwaysRun: false };
 
 export function loadSettings(): Settings {
   try { return { ...DEFAULT, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') }; } catch { return { ...DEFAULT }; }

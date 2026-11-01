@@ -2,8 +2,7 @@
 import { randInt, type Rng } from '../core/rng';
 import {
   AFFIXES, BASES, DROP, ITEM, LEGENDS, RARITY, RARITY_ORDER,
-  type Base, type LegendId, type Rarity, type Slot, type Stat,
-} from '../data/items';
+  type Base, type LegendId, type Rarity, type Slot, type Stat, CHEST } from '../data/items';
 
 export interface Affix { stat: Stat; value: number }
 export interface Item {
@@ -56,6 +55,14 @@ export function makeItem(rng: Rng, level: number, rarity: Rarity = rollRarity(rn
 export interface Loot { item: Item | null; gold: number; potion: 'hp' | 'rage' | null }
 
 /** 一隻怪死後掉咩。elite = 掉寶率 ×3 */
+/** 寶箱內容：一定有裝備 */
+export function rollChest(rng: Rng, level: number): Loot {
+  const item = makeItem(rng, level, rng() < CHEST.rareChance ? 'rare' : 'magic');
+  const gold = randInt(rng, CHEST.goldPerLevel[0], CHEST.goldPerLevel[1]) * level;
+  const potion = rng() < CHEST.potionChance ? (rng() < 0.65 ? 'hp' : 'rage') : null;
+  return { item, gold, potion };
+}
+
 export function rollLoot(rng: Rng, level: number, elite: boolean): Loot {
   const item = rng() < Math.min(1, DROP.itemChance * (elite ? DROP.eliteMult : 1)) ? makeItem(rng, level) : null;
   const gold = rng() < DROP.goldChance ? randInt(rng, DROP.goldPerLevel[0], DROP.goldPerLevel[1]) * level : 0;

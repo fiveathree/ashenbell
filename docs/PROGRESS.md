@@ -235,3 +235,8 @@ GitHub Pages 原本直接放原始碼，所以線上黑畫面。加咗 `.github/
 - 音效冇人耳驗證，只確認播放冇錯誤
 - 主角、怪物、NPC 全部 Soldier.glb 暫代，攻擊動作程式轉骨頭；Mixamo 素材到手先換到
 - 棺材、骸骨、破長椅、鎖鏈、鐘模型未有
+
+## 玩家回饋修正：寶箱同一直跑（2026-11-02）
+- 寶箱之前只係擺設，而家撳佢行過去會揭蓋，必掉一件魔法或稀有裝備加金幣，一半機會有藥水；開過嘅寶箱存檔會記住，唔可以再開。
+- 技能欄加「跑」掣，亦可以撳 R，開咗之後短距離都用跑，設定會記住。
+- 驗收：`node scripts/chest-check.mjs`。截圖：`docs/screenshots/chest-open.png`、`docs/screenshots/run-button.png`。

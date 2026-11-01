@@ -35,6 +35,7 @@ export class Player {
   deadFor = 0;
   attackTarget: Target | null = null;
   speedMul = 1;
+  alwaysRun = false;
   spinning = false;
   charging = false;
   buffTime = 0;
@@ -198,7 +199,7 @@ export class Player {
     const left = d + this.path.slice(1).reduce((s, p, i) => {
       const a = this.path[i]; return s + Math.hypot(p.x - a.x, p.z - a.z);
     }, 0);
-    const run = left > PLAYER.runDistance || (this.current === 'Run' && left > 0.8);
+    const run = this.alwaysRun || left > PLAYER.runDistance || (this.current === 'Run' && left > 0.8);
     const mul = this.speedMul * (this.slowTime > 0 ? 0.6 : 1) * (this.spinning ? SKILLS.whirl.moveMul : 1) * (1 + this.s.moveSpeed / 100);
     const step = Math.min((run ? PLAYER.runSpeed : PLAYER.walkSpeed) * mul * dt, d);
     pos.x += dx / d * step; pos.z += dz / d * step;

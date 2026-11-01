@@ -20,6 +20,7 @@ const html = `
         ${SKILL_ORDER.map((id, i) => `<div class="slot skill" id="sk-${id}"><img src="assets/icons/skill_${id}.webp" alt="" onerror="this.remove()"><em>${SKILLS[id].glyph}</em><u></u><b>${i + 1}</b></div>`).join('')}
         <div class="gap"></div>
         <div class="slot potion"><em id="potQ" style="color:#c8352a"></em><b>Q</b></div><div class="slot potion"><em id="potW" style="color:#d9771f"></em><b>W</b></div>
+        <div class="slot run" id="runBtn" title="一直跑"><em>跑</em><b>R</b></div>
       </div>
     </div>
     <div class="orb rage" title="怒氣"><i id="rageFill"></i><span id="rageText"></span></div>
@@ -61,6 +62,7 @@ export class Hud {
     if (t) $('bossLine').textContent = t;
   }
 
+  run(on: boolean) { $('runBtn').classList.toggle('on', on); }
   gold(n: number) { $('gold').textContent = String(n); }
   progress(xp: number, need: number, hpPot: number, ragePot: number, points: number) {
     $('xpFill').style.width = `${need ? xp / need * 100 : 100}%`;

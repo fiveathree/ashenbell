@@ -27,16 +27,16 @@ import './ui/hud.css';
 import './ui/panels.css';
 import { Panels } from './ui/panels';
 import { Hero, xpToNext } from './items/hero';
-import { makeItem, rollLoot } from './items/item';
+import { makeItem, rollChest, rollLoot } from './items/item';
 import { LootField, type Drop } from './entities/loot';
-import { DROP, LEVELING, type LegendId, type Rarity } from './data/items';
+import { CHEST, DROP, LEVELING, type LegendId, type Rarity } from './data/items';
 import { MiniMap } from './ui/minimap';
 import { HERO, NAV } from './data/combat';
 import { BREAK, CELL, placeName, THEMES } from './data/dungeon';
 import { bossDungeon, generate, townDungeon, type Stairs } from './world/dungeon';
 import { Boss } from './entities/boss';
 import { BOSS, ENDING } from './data/boss';
-import { Breakable, Level } from './world/level';
+import { Breakable, Chest, Level } from './world/level';
 import { navGrid } from './world/nav';
 
 const params = new URLSearchParams(location.search);
@@ -106,7 +106,7 @@ async function start() {
   const hero = new Hero(), story = new Story();
   const player = new Player(scene, navGrid(townDungeon()), quality, hero);
   await player.load();
-  const world: WorldState = { seed: newSeed(), floor: -1, waypoints: [-1], cleared: {}, broken: {}, explored: {} };
+  const world: WorldState = { seed: newSeed(), floor: -1, waypoints: [-1], cleared: {}, broken: {}, opened: {}, explored: {} };
   let npcs: Npc[] = [];
 
   const vfx = new Vfx(scene), floats = new Floats(), field = new LootField(scene);
@@ -114,7 +114,7 @@ async function start() {
   const panels = new Panels(hero, () => player.refresh(), () => player.refresh());
   const ui = new Ui(hero, () => { player.refresh(); panels.render(); hud.gold(hero.gold); });
   let level: Level | null = null as Level | null, monsters: Monster[] = [], kills = 0, changing = true, stairsGoal: Stairs | null = null;
-  let talkGoal: Npc | null = null, stoneGoal = false, lineLeft = 0;
+  let talkGoal: Npc | null = null, stoneGoal = false, lineLeft = 0, chestGoal: Chest | null = null;
   const lv = () => level!;
 
   const encodeExplored = () => {
@@ -218,6 +218,18 @@ async function start() {
     field.remove(d);
     return true;
   };
+  /** 開寶箱：蓋揭開，嘢跌出嚟 */
+  const openChest = (c: Chest) => {
+    c.open(timer.getElapsed());
+    (world.opened[lv().d.floor] ??= []).push(c.index);
+    sound.play('item'); sound.play('coin');
+    const loot = rollChest(Math.random, (lv().d.floor + 1) * 4);
+    const at = (i: number) => lv().grid.nearestFree(c.x + Math.cos(i * 2.1) * 1.5, c.z + Math.sin(i * 2.1) * 1.5) ?? player.pos;
+    if (loot.item) { const p = at(0); field.add(p.x, p.z, loot.item, 0, null); }
+    if (loot.gold) { const p = at(1); field.add(p.x, p.z, null, loot.gold, null); }
+    if (loot.potion) { const p = at(2); field.add(p.x, p.z, null, 0, loot.potion); }
+    save();
+  };
   field.onClick = d => { pickGoal = d; player.moveTo({ x: d.x, z: d.z }); };
   player.onDodge = () => floats.add(player.pos.x, 1.9, player.pos.z, '閃避', 'gold');
   const skills = new Skills(player, vfx, () => monsters, () => lv().breakables);
@@ -246,7 +258,7 @@ async function start() {
     npcs.forEach(n => n.remove()); npcs = [];
     await new Promise(r => setTimeout(r, 30));
     const d = floor < 0 ? townDungeon() : floor === 3 ? bossDungeon() : generate(world.seed, floor);
-    level = await new Level(scene, d, aniso, quality.shadows, smash, world.broken[floor]).build();
+    level = await new Level(scene, d, aniso, quality.shadows, smash, world.broken[floor], world.opened[floor]).build();
     player.grid = lv().grid;
     pool.set(lv().fires);
     monsters = [];
@@ -272,7 +284,7 @@ async function start() {
     world.floor = floor;
     atmosphere(floor < 0);
     sound.ambient(floor < 0 ? 'town' : 'dungeon');
-    changing = false; stairsGoal = null; talkGoal = null; stoneGoal = false;
+    changing = false; stairsGoal = null; talkGoal = null; stoneGoal = false; chestGoal = null;
     hud.loading(null);
     save();
   }
@@ -322,6 +334,11 @@ async function start() {
     const w = lv().d.waystone;
     return Math.hypot(hitPt.x - w.x, hitPt.z - w.z) < 1;
   };
+  const pickChest = () => {
+    ray.setFromCamera(mouse, camera);
+    if (!ray.ray.intersectPlane(lowPlane, hitPt)) return null;
+    return lv().chests.find(c => !c.opened && Math.hypot(hitPt.x - c.x, hitPt.z - c.z) < CHEST.reach) ?? null;
+  };
   const talk = (n: Npc) => {
     if (n.id === 'ge') {
       const ending = story.stage === 6, lines = story.talkGe();
@@ -350,11 +367,13 @@ async function start() {
   const busy = () => changing || !level || panels.open || ui.dialogOpen || !!ui.shopOpen || ui.blocking;
   const act = (fresh: boolean) => {
     if (busy()) return;
-    if (fresh) { pickGoal = null; talkGoal = null; stoneGoal = false; }
+    if (fresh) { pickGoal = null; talkGoal = null; stoneGoal = false; chestGoal = null; }
     if (fresh) {
       const n = pickNpc();
       if (n) { talkGoal = n; player.moveTo({ x: n.pos.x + 1, z: n.pos.z + 1 }); return; }
       if (pickStone()) { stoneGoal = true; const w = lv().d.waystone; player.moveTo({ x: w.x, z: w.z + 1.4 }); return; }
+      const c = pick() ? null : pickChest();
+      if (c) { chestGoal = c; player.moveTo({ x: c.x, z: c.z + 1.4 }); return; }
     }
     const g = lv().d.floor >= 0 ? pick() : null;
     if (fresh) lockTarget = g;
@@ -381,6 +400,10 @@ async function start() {
     if (e.button === 2 && !busy() && lv().d.floor >= 0) skills.press('heavy', aimPoint());
   });
   addEventListener('pointermove', aim);
+  const setRun = (on: boolean) => { player.alwaysRun = settings.alwaysRun = on; hud.run(on); };
+  const toggleRun = () => { setRun(!player.alwaysRun); saveSettings(settings); };
+  setRun(settings.alwaysRun);
+  document.getElementById('runBtn')!.addEventListener('click', toggleRun);
   const openSettings = (back: () => void) => ui.settings(settings, qName, gpuName.replace(/^ANGLE \(|, D3D11\)$|\(0x[0-9A-Fa-f]+\)|Direct3D11.*$/g, '').trim(), () => {
     saveSettings(settings);
     sound.setVolume(settings.volume);
@@ -404,6 +427,7 @@ async function start() {
         sound.play('potion'); hero.potions.rage--; player.rage = Math.min(HERO.rageMax, player.rage + DROP.rageGain);
       }
     }
+    if (!e.repeat && k === 'r') toggleRun();
     if (e.key === 'Tab') { e.preventDefault(); mapOpen = !mapOpen; hud.showMap(mapOpen); }
     if (e.key === 'Escape') {
       const any = panels.open || mapOpen || ui.dialogOpen || !!ui.shopOpen;
@@ -509,6 +533,7 @@ async function start() {
       }
       const lamp = hero.has('lamp');
       if (lamp) for (const g of monsters) if (!g.dead) g.reveal(true);
+      if (chestGoal && Math.hypot(player.pos.x - chestGoal.x, player.pos.z - chestGoal.z) < CHEST.openReach) { openChest(chestGoal); chestGoal = null; }
       if (talkGoal && talkGoal.pos.distanceTo(player.pos) < 2.2) { const n = talkGoal; talkGoal = null; talk(n); }
       if (stoneGoal && Math.hypot(player.pos.x - level.d.waystone.x, player.pos.z - level.d.waystone.z) < 2.2) { stoneGoal = false; travel(); }
       // 行到樓梯就上落
@@ -529,9 +554,9 @@ async function start() {
     }
     if (!changing && level) {
       const d = level.d, town = d.floor < 0;
-      const hover = town ? null : pick(), npc = pickNpc(), stone = !npc && pickStone(), st = hover || npc || stone ? null : pickStairs();
+      const hover = town ? null : pick(), npc = pickNpc(), stone = !npc && pickStone(), box = hover || npc || stone ? null : pickChest(), st = hover || npc || stone || box ? null : pickStairs();
       hud.target(hover instanceof Boss ? null : hover ? (hover instanceof Monster ? { name: hover.name, hp: hover.hp, maxHp: hover.maxHp, elite: hover.elite } : { name: hover.name })
-        : npc ? { name: npc.name } : stone ? { name: '傳送石' }
+        : npc ? { name: npc.name } : stone ? { name: '傳送石' } : box ? { name: '寶箱' }
           : st ? { name: st === d.down ? (town ? '修道院大門：入地窖' : d.floor < 2 ? '落去下一層' : '落去院長之室') : (d.floor > 0 ? '返上一層' : '返回荒鐘鎮') } : null);
     }
     const boss = monsters.find(m => m instanceof Boss && !m.dead);

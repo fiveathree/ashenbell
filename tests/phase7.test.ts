@@ -1,3 +1,5 @@
+import { rollChest } from '../src/items/item';
+import { CHEST } from '../src/data/items';
 import { describe, expect, it } from 'vitest';
 import { autoQuality } from '../src/core/settings';
 import { readFileSync, statSync, readdirSync } from 'node:fs';
@@ -32,5 +34,15 @@ describe('發佈檔案', () => {
     const block = s.slice(s.indexOf('const TEXTURES'), s.indexOf('const HEAVY'));
     const ids = [...block.matchAll(/'([A-Za-z_0-9]+)'/g)].map(m => m[1]);
     for (const id of ids) expect(c).toContain(id);
+  });
+});
+
+describe('寶箱', () => {
+  it('一定有魔法以上裝備同金幣', () => {
+    for (let i = 0; i < 200; i++) {
+      const l = rollChest(Math.random, 8);
+      expect(['magic', 'rare']).toContain(l.item!.rarity);
+      expect(l.gold).toBeGreaterThanOrEqual(CHEST.goldPerLevel[0] * 8);
+    }
   });
 });
