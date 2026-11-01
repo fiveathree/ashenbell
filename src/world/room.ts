@@ -6,10 +6,10 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ROOM } from '../data/art';
+import type { Circle, Rect } from './grid';
 
 const LANTERN_SCALE = 2.6;
 
-export interface Collider { x: number; z: number; r: number }
 
 const M = 'assets/models/';
 const T = 'assets/textures/';
@@ -81,7 +81,7 @@ function buildWalls() {
 }
 
 /** 後排兩條完整方柱；前排兩條係斷柱，唔擋鏡頭 */
-function buildPillars(cols: Collider[]) {
+function buildPillars(cols: Circle[]) {
   const parts: BufferGeometry[] = [];
   for (const [x, z, h] of [[-4.4, -5.3, 4.2], [4.4, -5.3, 4.2], [-5, 4, 1.1], [5, 4, 0.75]]) {
     parts.push(box(1, h, 1, x, h / 2, z, 0.07));
@@ -107,7 +107,13 @@ export async function buildRoom(scene: Scene, aniso: number) {
   floor.name = 'floor';
   scene.add(floor);
 
-  const colliders: Collider[] = [];
+  const colliders: Circle[] = [];
+  const hz = ROOM.halfZ, hx = ROOM.halfX;
+  const rects: Rect[] = [
+    { minX: -2.5, maxX: 2.5, minZ: -hz, maxZ: -hz + 1.2 }, // 祭台
+    ...[-7, -2.5, 2.5, 7].map(x => ({ minX: x - 0.55, maxX: x + 0.55, minZ: -hz, maxZ: -hz + 0.5 })),
+    ...[-3.5, 3.5].map(z => ({ minX: -hx, maxX: -hx + 0.5, minZ: z - 0.55, maxZ: z + 0.55 })),
+  ];
   const stone = mergeGeometries([...buildWalls(), ...buildPillars(colliders)].map(g => {
     g.deleteAttribute('uv1'); return darkenTops(worldUV(g, ROOM.wallTexMeters));
   }));
@@ -162,6 +168,6 @@ export async function buildRoom(scene: Scene, aniso: number) {
     { flame: new Vector3(1.5, 1.38, -7.5), light: new Vector3(1.7, 1.75, -6.7) },
     { flame: new Vector3(1.9, 1.3, -7.3), light: null },
   ];
-  return { floor, colliders, torchAt, candleAt };
+  return { floor, colliders, rects, torchAt, candleAt };
 }
 
