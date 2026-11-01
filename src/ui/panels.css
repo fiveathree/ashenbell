@@ -1,0 +1,60 @@
+/* 深色皮革金屬面板，金色細邊（PLAN.md 第 4.7、8 節）。全部用 --u 縮放，唔會捲動。 */
+.panel{position:absolute;top:calc(14*var(--u));bottom:calc(136*var(--u));pointer-events:auto;display:flex;flex-direction:column;gap:calc(8*var(--u));padding:calc(10*var(--u)) calc(14*var(--u));box-sizing:border-box;
+  border:1px solid var(--gold);background:radial-gradient(120% 90% at 50% 0,#241a12,#0f0b08 70%);box-shadow:0 0 calc(24*var(--u)) #000,inset 0 0 calc(22*var(--u)) rgba(0,0,0,.8);overflow:hidden}
+.panel.inv{right:calc(10*var(--u));width:calc(412*var(--u))}
+.panel.char{left:calc(10*var(--u));width:calc(412*var(--u))}
+.panel header{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #3a2d17;padding-bottom:calc(5*var(--u))}
+.panel h3{margin:0;font-size:calc(19*var(--u));font-weight:700;letter-spacing:.24em;color:#d2b467}
+.panel header span{font-size:calc(13*var(--u));color:#a8956c}
+.panel header b{color:#e8d84a;font-weight:400}
+
+/* 裝備欄：人形排列，固定位置 */
+.paper{position:relative;height:calc(232*var(--u));flex:none}
+.eq{position:absolute;width:calc(62*var(--u));height:calc(62*var(--u));display:grid;place-items:center;border:1px solid #4a3a1c;background:radial-gradient(circle at 50% 40%,#17110c,#080504);box-shadow:inset 0 0 calc(10*var(--u)) #000;box-sizing:border-box}
+.eq span{font-size:calc(12*var(--u));color:#5e5038}
+.eq img{width:100%;height:100%;object-fit:cover;box-shadow:inset 0 0 0 1px var(--rc);outline:1px solid var(--rc);outline-offset:-1px;cursor:grab}
+.eq-helm{left:calc(160*var(--u));top:0}
+.eq-amulet{left:calc(232*var(--u));top:0}
+.eq-weapon{left:calc(76*var(--u));top:calc(50*var(--u));height:calc(110*var(--u))}
+.eq-chest{left:calc(160*var(--u));top:calc(70*var(--u));height:calc(90*var(--u))}
+.eq-gloves{left:calc(244*var(--u));top:calc(70*var(--u))}
+.eq-belt{left:calc(160*var(--u));top:calc(168*var(--u));height:calc(62*var(--u))}
+.eq-boots{left:calc(232*var(--u));top:calc(168*var(--u))}
+.eq-ring1{left:calc(88*var(--u));top:calc(168*var(--u))}
+.eq-ring2{left:calc(316*var(--u));top:calc(70*var(--u))}
+
+.grid{position:relative;flex:none;width:calc(38*var(--c)*var(--u));height:calc(38*var(--r)*var(--u));background-color:#0a0705;
+  background-image:linear-gradient(#2c2212 1px,transparent 1px),linear-gradient(90deg,#2c2212 1px,transparent 1px);background-size:calc(38*var(--u)) calc(38*var(--u));box-shadow:0 0 0 1px #4a3a1c}
+.it{position:absolute;box-sizing:border-box;padding:1px;background:radial-gradient(circle,color-mix(in srgb,var(--rc) 16%,#0a0705),#0a0705)}
+.it img{width:100%;height:100%;object-fit:cover;display:block;outline:1px solid color-mix(in srgb,var(--rc) 60%,transparent);outline-offset:-1px;cursor:grab}
+.dragging{position:absolute;z-index:9;pointer-events:none;object-fit:cover;opacity:.85}
+
+.cols{display:grid;grid-template-columns:1.2fr 1fr;gap:calc(8*var(--u))}
+.box{border:1px solid #3a2d17;padding:calc(7*var(--u)) calc(9*var(--u));background:rgba(0,0,0,.25)}
+.lbl{display:flex;justify-content:space-between;font-size:calc(12*var(--u));letter-spacing:.14em;color:#a8956c;margin-bottom:calc(5*var(--u))}
+.lbl em{font-style:normal;color:#e8d84a}
+.row{display:grid;grid-template-columns:calc(52*var(--u)) calc(30*var(--u)) 1fr calc(22*var(--u));align-items:center;font-size:calc(13.5*var(--u));min-height:calc(26*var(--u))}
+.row.skill{grid-template-columns:calc(70*var(--u)) calc(40*var(--u)) 1fr calc(22*var(--u))}
+.row b{color:#e4d8bf;font-weight:400}
+.row i{font-style:normal;font-size:calc(10.5*var(--u));color:#6e6048}
+.row button{width:calc(20*var(--u));height:calc(20*var(--u));padding:0;border:1px solid var(--gold);background:#2a1e10;color:#e8d84a;font-size:calc(14*var(--u));line-height:1;cursor:pointer;pointer-events:auto}
+.row button:disabled{opacity:.25;cursor:default}
+.kv{display:flex;justify-content:space-between;font-size:calc(12.5*var(--u));min-height:calc(19*var(--u))}
+.kv span{color:#8d7a58}
+.kv b{color:#e4d8bf;font-weight:400}
+
+.tip{position:absolute;z-index:8;width:calc(240*var(--u));box-sizing:border-box;padding:calc(8*var(--u)) calc(11*var(--u));pointer-events:none;background:rgba(10,7,5,.96);border:1px solid var(--gold);box-shadow:0 0 calc(12*var(--u)) #000;font-size:calc(13*var(--u));line-height:1.5}
+.tip h4{margin:0;font-size:calc(16*var(--u));letter-spacing:.06em}
+.tip small{display:block;color:#8d7a58;font-size:calc(11.5*var(--u))}
+.tip p{margin:calc(2*var(--u)) 0}
+.tip .up{color:#6fce6f}
+.tip .down{color:#d4544a}
+
+/* 地上物品 */
+.drop{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;white-space:nowrap;padding:calc(1*var(--u)) calc(7*var(--u));font-size:calc(13*var(--u));background:rgba(8,5,3,.72);border:1px solid rgba(184,149,61,.3);will-change:transform}
+.drop:hover{background:rgba(40,28,14,.95);border-color:var(--gold)}
+.lvup{position:absolute;left:50%;top:22%;transform:translateX(-50%);font-size:calc(26*var(--u));letter-spacing:.3em;color:#e8d84a;text-shadow:0 0 calc(12*var(--u)) #000;animation:lvfade 2.4s forwards}
+@keyframes lvfade{0%,70%{opacity:1}100%{opacity:0}}
+.slot.potion em{position:absolute;left:calc(4*var(--u));top:calc(2*var(--u));font:400 calc(13*var(--u)) "Noto Serif TC",serif;font-style:normal}
+.xp i{transition:width .2s}
+.pts{position:absolute;right:calc(6*var(--u));top:calc(-16*var(--u));font-size:calc(11*var(--u));color:#e8d84a;text-shadow:0 1px 2px #000}

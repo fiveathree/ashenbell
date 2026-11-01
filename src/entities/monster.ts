@@ -1,7 +1,6 @@
 import { AnimationAction, AnimationClip, AnimationMixer, Color, Group, Mesh, MeshStandardMaterial, Scene } from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { HERO } from '../data/combat';
 import { AI, ELITE, MONSTERS, type EliteTrait, type MonsterDef, type MonsterId } from '../data/monsters';
 import { rollDamage } from '../combat/damage';
 import type { Grid, Pt } from '../world/grid';
@@ -53,12 +52,14 @@ export class Monster {
   private walking = false;
   private summonIn = AI.caster.summonEvery * 0.5;
   private fled = false;
+  level: number;
 
   constructor(
     private scene: Scene, src: GLTF, private grid: Grid, public id: MonsterId, x: number, z: number,
     level: number, traits: EliteTrait[], shadows: boolean, private ev: MonsterEvents,
   ) {
     const def = this.def = MONSTERS[id];
+    this.level = level;
     this.traits = traits;
     const elite = traits.length > 0;
     this.armor = def.armor;
@@ -129,6 +130,9 @@ export class Monster {
   fear(s: number) { if (!this.dead && !this.hidden) { this.state = 'fear'; this.timer = s; this.path = []; } }
   heal(n: number) { if (!this.dead) { this.hp = Math.min(this.maxHp, this.hp + n); } }
   remove() { this.scene.remove(this.model); this.gone = true; }
+  /** 守夜人的燈：暗處怪物現形 */
+  reveal(on: boolean) { if (this.flash === 0) for (const m of this.mats) m.emissiveIntensity = on ? 0.06 : 0; }
+
   reset() { if (!this.dead && !this.hidden) { this.state = 'idle'; this.path = []; } }
 
   private setWalk(on: boolean) {
@@ -165,16 +169,16 @@ export class Monster {
     this.path = this.grid.findPath(this.pos, to);
   }
 
-  private rollHit() {
+  private rollHit(player: Player) {
     return rollDamage({
       weapon: this.def.damage, strength: 0, bonusPct: (this.dmgMult - 1) * 100, critChance: 0, critMult: 1,
-      targetArmor: HERO.armor, attackerLevel: 1,
+      targetArmor: player.armor, attackerLevel: this.level,
     }).amount;
   }
 
   private melee(player: Player, dist: number) {
     if (player.dead || dist >= this.def.attackRange + 0.6) return;
-    const dmg = this.rollHit();
+    const dmg = this.rollHit(player);
     player.hurt(dmg);
     if (this.def.ai === 'lurker') player.slow(AI.lurker.slow);
     if (this.traits.includes('vamp')) this.heal(dmg * ELITE.traits.vamp.heal!);
@@ -250,7 +254,7 @@ export class Monster {
         this.timer += dt / AI.heavy.windup;
         if (this.timer >= 1) {
           this.ev.heavyHit(this.pos.x, this.pos.z);
-          if (!player.dead && dist < AI.heavy.radius) player.hurt(this.rollHit());
+          if (!player.dead && dist < AI.heavy.radius) player.hurt(this.rollHit(player));
           this.state = 'chase';
         }
         break;
@@ -259,8 +263,8 @@ export class Monster {
         this.timer += dt / this.attackTime;
         if (!this.struck && this.timer >= this.def.impactAt) {
           this.struck = true;
-          if (this.def.ai === 'ranged') this.ev.arrow(this, this.rollHit(), false);
-          else if (this.def.ai === 'caster') this.ev.arrow(this, this.rollHit(), true);
+          if (this.def.ai === 'ranged') this.ev.arrow(this, this.rollHit(player), false);
+          else if (this.def.ai === 'caster') this.ev.arrow(this, this.rollHit(player), true);
           else this.melee(player, dist);
         }
         if (this.timer >= 1) this.state = 'chase';

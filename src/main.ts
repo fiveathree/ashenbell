@@ -14,6 +14,12 @@ import { FX } from './data/skills';
 import { AI, ELITE, MONSTERS, type EliteTrait, type MonsterId } from './data/monsters';
 import { Hud } from './ui/hud';
 import './ui/hud.css';
+import './ui/panels.css';
+import { Panels } from './ui/panels';
+import { Hero, xpToNext } from './items/hero';
+import { makeItem, rollLoot } from './items/item';
+import { LootField, type Drop } from './entities/loot';
+import { DROP, LEVELING, type LegendId, type Rarity } from './data/items';
 import { MiniMap } from './ui/minimap';
 import { HERO, NAV } from './data/combat';
 import { BREAK, CELL, THEMES } from './data/dungeon';
@@ -59,11 +65,14 @@ async function start() {
   const debris = new Debris(scene);
 
   const first = generate(seed, Number(params.get('floor')) || 0);
-  const player = new Player(scene, navGrid(first), quality);
+  const hero = new Hero();
+  const player = new Player(scene, navGrid(first), quality, hero);
   await player.load();
 
-  const vfx = new Vfx(scene), floats = new Floats();
-  let level!: Level, monsters: Monster[] = [], gold = 0, kills = 0, changing = false, stairsGoal: Stairs | null = null;
+  const vfx = new Vfx(scene), floats = new Floats(), field = new LootField(scene);
+  let pickGoal: Drop | null = null;
+  const panels = new Panels(hero, () => player.refresh(), () => player.refresh());
+  let level!: Level, monsters: Monster[] = [], kills = 0, changing = false, stairsGoal: Stairs | null = null;
 
   const newMonster = (type: MonsterId, x: number, z: number, lv: number, traits: EliteTrait[] = []) => {
     const m = new Monster(scene, player.gltf, level.grid, type, x, z, lv, traits, quality.ghoulShadows, events);
@@ -78,6 +87,7 @@ async function start() {
     },
     died(m) {
       vfx.blood(m.pos.x, m.pos.z, m.def.blood);
+      reward(m);
       if (m.traits.includes('split')) {
         for (let i = 0; i < ELITE.traits.split.spawns!; i++) newMonster('ghoul', m.pos.x + (i ? 0.7 : -0.7), m.pos.z, 4).state = 'chase';
       }
@@ -95,6 +105,36 @@ async function start() {
     heavyHit(x, z) { vfx.ring(x, z, AI.heavy.radius * 1.2, 0xd9771f); vfx.bump(FX.shakeHeavy); },
     heal(m) { vfx.ring(m.pos.x, m.pos.z, 2, 0x5a9a5a); floats.add(m.pos.x, 1.7, m.pos.z, '治療', 'gold'); },
   };
+  /** 怪物死：經驗同掉寶 */
+  const reward = (m: Monster) => {
+    const base = LEVELING.monsterXp[m.id] * (1 + LEVELING.xpPerMonsterLevel * (m.level - 1));
+    const ups = hero.gain(Math.round(base * (m.elite ? LEVELING.eliteXp : 1)));
+    if (ups) {
+      player.refresh();
+      player.hp = player.maxHp;
+      hud.levelUp(hero.level);
+      vfx.ring(player.pos.x, player.pos.z, 4, 0xb8953d);
+    }
+    const loot = rollLoot(Math.random, m.level, m.elite);
+    const at = (i: number) => {
+      const p = level.grid.nearestFree(m.pos.x + Math.cos(i * 2.1) * 0.8, m.pos.z + Math.sin(i * 2.1) * 0.8) ?? m.pos;
+      return p;
+    };
+    if (loot.item) { const p = at(0); field.add(p.x, p.z, loot.item, 0, null); }
+    if (loot.gold) { const p = at(1); field.add(p.x, p.z, null, loot.gold, null); }
+    if (loot.potion) { const p = at(2); field.add(p.x, p.z, null, 0, loot.potion); }
+  };
+  const pickup = (d: Drop) => {
+    if (d.item) {
+      if (!hero.addItem(d.item)) { floats.add(player.pos.x, 2, player.pos.z, '背包已滿', 'gold'); return false; }
+      panels.render();
+    } else if (d.gold) { hero.gold += d.gold; hud.gold(hero.gold); }
+    else if (d.potion) hero.potions[d.potion]++;
+    field.remove(d);
+    return true;
+  };
+  field.onClick = d => { pickGoal = d; player.moveTo({ x: d.x, z: d.z }); };
+  player.onDodge = () => floats.add(player.pos.x, 1.9, player.pos.z, '閃避', 'gold');
   const skills = new Skills(player, vfx, () => monsters, () => level.breakables);
   player.onHurt = n => {
     floats.add(player.pos.x, 1.9, player.pos.z, String(Math.round(n)), 'hurt');
@@ -105,8 +145,8 @@ async function start() {
     level.remove(b);
     debris.burst(b.pos.x, b.pos.z);
     if (Math.random() < 0.6) {
-      gold += MathUtils.randInt(BREAK.goldMin, BREAK.goldMax);
-      hud.gold(gold);
+      hero.gold += MathUtils.randInt(BREAK.goldMin, BREAK.goldMax) * (level.d.floor + 1);
+      hud.gold(hero.gold);
     }
   };
 
@@ -114,7 +154,7 @@ async function start() {
   async function enter(floor: number, arrive: 'up' | 'down') {
     changing = true;
     hud.loading(`第 ${floor + 1} 層 · ${THEMES[floor].name}`);
-    if (level) { level.dispose(); monsters.forEach(g => g.remove()); vfx.clear(); }
+    if (level) { level.dispose(); monsters.forEach(g => g.remove()); vfx.clear(); field.clear(); pickGoal = null; }
     await new Promise(r => setTimeout(r, 30));
     const d = floor === first.floor ? first : generate(seed, floor);
     level = await new Level(scene, d, aniso, quality.shadows, smash).build();
@@ -167,7 +207,8 @@ async function start() {
     return null;
   };
   const act = (fresh: boolean) => {
-    if (changing) return;
+    if (changing || panels.open) return;
+    if (fresh) pickGoal = null;
     const g = pick();
     if (fresh) lockTarget = g;
     if (lockTarget && !lockTarget.dead) { if (player.attackTarget !== lockTarget) player.attack(lockTarget); return; }
@@ -187,15 +228,28 @@ async function start() {
   renderer.domElement.addEventListener('pointerdown', e => {
     aim(e);
     if (e.button === 0) { held = true; holdTimer = NAV.holdRepeat; act(true); }
-    if (e.button === 2 && !changing) skills.press('heavy', aimPoint());
+    if (e.button === 2 && !changing && !panels.open) skills.press('heavy', aimPoint());
   });
   addEventListener('pointermove', aim);
   addEventListener('pointerup', () => { held = false; lockTarget = null; });
   addEventListener('contextmenu', e => e.preventDefault());
-  addEventListener('keyup', e => { if (e.key === '3') skills.release('whirl'); });
+  addEventListener('keyup', e => { if (e.key === '3') skills.release('whirl'); if (e.key === 'Alt') field.showAll = false; });
   addEventListener('keydown', e => {
     const n = '1234'.indexOf(e.key);
-    if (n >= 0 && !e.repeat && !changing) skills.press(SKILL_ORDER[n], aimPoint());
+    if (n >= 0 && !e.repeat && !changing && !panels.open) skills.press(SKILL_ORDER[n], aimPoint());
+    const k = e.key.toLowerCase();
+    if (!e.repeat && k === 'i') panels.toggle('inv');
+    if (!e.repeat && k === 'c') panels.toggle('char');
+    if (e.key === 'Alt') { e.preventDefault(); field.showAll = true; }
+    if (!e.repeat && (k === 'q' || k === 'w') && !player.dead) {
+      if (k === 'q' && hero.potions.hp > 0 && player.hp < player.maxHp) {
+        hero.potions.hp--; player.hp = Math.min(player.maxHp, player.hp + player.maxHp * DROP.potionHeal);
+      }
+      if (k === 'w' && hero.potions.rage > 0 && player.rage < HERO.rageMax) {
+        hero.potions.rage--; player.rage = Math.min(HERO.rageMax, player.rage + DROP.rageGain);
+      }
+    }
+    if (e.key === 'Escape' && panels.open) panels.closeAll();
     if (e.key === 'Tab') { e.preventDefault(); mapOpen = !mapOpen; hud.showMap(mapOpen); }
     if (e.key === 'Escape' && mapOpen) { mapOpen = false; hud.showMap(false); }
   });
@@ -239,6 +293,14 @@ async function start() {
         player.respawn(s.x, s.z + CELL);
         monsters.forEach(g => g.reset());
       }
+      // 金幣行近自動撿；撳過嘅物品行到就撿
+      for (const d of [...field.drops]) {
+        const near = Math.hypot(d.x - player.pos.x, d.z - player.pos.z);
+        if ((d.gold || d.potion) && near < 1.4) pickup(d);
+        else if (d === pickGoal && near < 1.1) { pickup(d); pickGoal = null; }
+      }
+      const lamp = hero.has('lamp');
+      if (lamp) for (const g of monsters) if (!g.dead) g.reveal(true);
       // 行到樓梯就上落
       if (stairsGoal && !player.dead && Math.hypot(player.pos.x - stairsGoal.x, player.pos.z - stairsGoal.z) < CELL * 1.25) {
         const d = level.d, goDown = stairsGoal === d.down;
@@ -256,7 +318,8 @@ async function start() {
       hud.target(hover ? (hover instanceof Monster ? { name: hover.name, hp: hover.hp, maxHp: hover.maxHp, elite: hover.elite } : { name: hover.name })
         : st ? { name: st === d.down ? (d.floor < 2 ? '落去下一層' : '封印之井最深處') : (d.floor > 0 ? '返上一層' : '返回地面（小鎮未開放）') } : null);
     }
-    hud.update(player.hp, player.maxHp, player.rage, HERO.rageMax, `擊殺 ${kills}`, player.dead);
+    hud.progress(hero.xp, hero.level >= LEVELING.max ? 0 : xpToNext(hero.level), hero.potions.hp, hero.potions.rage, hero.statPoints + hero.skillPoints);
+    hud.update(Math.round(player.hp), player.maxHp, player.rage, HERO.rageMax, `擊殺 ${kills}`, player.dead);
     focus.x += (fp.x - focus.x) * Math.min(1, CAMERA.followLerp * dt);
     focus.z += (fp.z - focus.z) * Math.min(1, CAMERA.followLerp * dt);
     distance += (wantDistance - distance) * Math.min(1, CAMERA.zoomLerp * dt);
@@ -264,6 +327,7 @@ async function start() {
     if (vfx.shake > 0) camera.position.add(new Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(vfx.shake * 2));
     hud.skills(skills, player.buffTime);
     floats.update(dt, camera);
+    field.update(camera, t, changing);
     pool.update(t, camera, fp);
     embers.update(dt, t);
     dust.update(dt, t, fp);
@@ -276,8 +340,10 @@ async function start() {
 
   if (import.meta.env.DEV) {
     Object.assign(window, { __ashen: {
-      player, camera, renderer, focus, Vector3, seed, map, kills: () => kills, gold: () => gold,
-      skills, vfx, MONSTERS, spawn: newMonster, get monsters() { return monsters; }, get level() { return level; }, get changing() { return changing; }, get stats() { return stats; },
+      player, camera, renderer, focus, Vector3, seed, map, kills: () => kills, gold: () => hero.gold,
+      skills, vfx, MONSTERS, spawn: newMonster, hero, panels, field, makeItem, reward,
+      legend(id: LegendId) { const it = makeItem(Math.random, 12, 'legend', id); hero.addItem(it); return it; },
+      item(r: Rarity, lv = 8) { const it = makeItem(Math.random, lv, r); hero.addItem(it); return it; }, get monsters() { return monsters; }, get level() { return level; }, get changing() { return changing; }, get stats() { return stats; },
       enter, snap() { focus.copy(player.pos).setY(1); },
     } });
   }

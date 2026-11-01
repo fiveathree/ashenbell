@@ -109,6 +109,11 @@ export class Vfx {
     this.add(fill, x, 0.05, z, PALETTE.blood, { life: time, peak: 0.34, hold: time, additive: false });
   }
 
+  /** 燃燒地面 */
+  burn(x: number, z: number, radius: number, time: number) {
+    this.add(unitPlane(), x, 0.07, z, 0, { mat: softMat(EMBER, [0, 1], 0, 0, 0.5), life: time, peak: 0.5, hold: time, size: radius });
+  }
+
   blood(x: number, z: number, color: number) {
     if (this.decals.length >= FX.bloodDecals) this.killDecal(0);
     const m = new Mesh(this.splats[Math.floor(Math.random() * 3)], new MeshBasicMaterial({

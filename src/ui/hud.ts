@@ -13,11 +13,11 @@ const html = `
   <div class="dock">
     <div class="orb hp" title="生命"><i id="hpFill"></i><span id="hpText"></span></div>
     <div class="belt">
-      <div class="xp"><i style="width:0"></i></div>
+      <div class="xp"><i id="xpFill" style="width:0"></i></div>
       <div class="slots">
-        ${SKILL_ORDER.map((id, i) => `<div class="slot skill" id="sk-${id}"><em>${SKILLS[id].glyph}</em><u></u><b>${i + 1}</b></div>`).join('')}
+        ${SKILL_ORDER.map((id, i) => `<div class="slot skill" id="sk-${id}"><img src="assets/icons/skill_${id}.webp" alt="" onerror="this.remove()"><em>${SKILLS[id].glyph}</em><u></u><b>${i + 1}</b></div>`).join('')}
         <div class="gap"></div>
-        <div class="slot"><b>Q</b></div><div class="slot"><b>W</b></div>
+        <div class="slot potion"><em id="potQ" style="color:#c8352a"></em><b>Q</b></div><div class="slot potion"><em id="potW" style="color:#d9771f"></em><b>W</b></div>
       </div>
     </div>
     <div class="orb rage" title="怒氣"><i id="rageFill"></i><span id="rageText"></span></div>
@@ -41,7 +41,7 @@ export class Hud {
   skills(s: Skills, buff: number) {
     for (const id of SKILL_ORDER) {
       const el = $(`sk-${id}`), def = SKILLS[id] as { cooldown?: number }, left = s.cooldown[id];
-      const u = el.children[1] as HTMLElement;
+      const u = el.querySelector('u') as HTMLElement;
       u.style.background = def.cooldown && left > 0 ? `conic-gradient(rgba(0,0,0,.78) ${left / def.cooldown * 360}deg,transparent 0)` : 'none';
       el.classList.toggle('off', !s.ready(id) && !(def.cooldown && left > 0));
       el.classList.toggle('on', (id === 'whirl' && s.whirling) || (id === 'roar' && buff > 0));
@@ -49,6 +49,18 @@ export class Hud {
   }
 
   gold(n: number) { $('gold').textContent = String(n); }
+  progress(xp: number, need: number, hpPot: number, ragePot: number, points: number) {
+    $('xpFill').style.width = `${need ? xp / need * 100 : 100}%`;
+    $('potQ').textContent = String(hpPot);
+    $('potW').textContent = String(ragePot);
+    $('quest').dataset.pts = points ? `有 ${points} 點未分配（C）` : '';
+  }
+  levelUp(n: number) {
+    const el = document.createElement('div');
+    el.className = 'lvup'; el.textContent = `升到 ${n} 級`;
+    $('hud').appendChild(el);
+    setTimeout(() => el.remove(), 2400);
+  }
   floor(name: string) { $('floorName').textContent = name; }
   loading(name: string | null) { $('lvLoad').hidden = !name; if (name) $('lvName').textContent = name; }
   showMap(on: boolean) { this.big.hidden = !on; }

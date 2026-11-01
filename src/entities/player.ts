@@ -1,6 +1,8 @@
 import { AnimationAction, AnimationClip, AnimationMixer, Group, Mesh, PointLight, Scene } from 'three';
 import { GLTF, GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { LIGHT, PLAYER } from '../data/art';
+import { LEGEND_FX } from '../data/items';
+import type { Hero, Stats } from '../items/hero';
 import { HERO, NAV } from '../data/combat';
 import { rollDamage } from '../combat/damage';
 import { SKILLS } from '../data/skills';
@@ -22,8 +24,11 @@ export class Player {
   model!: Group;
   gltf!: GLTF;
   light: PointLight;
-  maxHp = HERO.baseHp + HERO.vitality * HERO.hpPerVitality;
-  hp = this.maxHp;
+  s: Stats;
+  hp: number;
+  invuln = 0;
+  /** 打中目標時：傷害數字等由外面處理 */
+  onDodge: (() => void) | null = null;
   rage = 0;
   dead = false;
   deadFor = 0;
@@ -51,7 +56,9 @@ export class Player {
   private repath = 0;
   private sinceCombat = 99;
 
-  constructor(private scene: Scene, public grid: Grid, q: { shadows: boolean; shadowMap: number }) {
+  constructor(private scene: Scene, public grid: Grid, q: { shadows: boolean; shadowMap: number }, public hero: Hero) {
+    this.s = hero.stats;
+    this.hp = this.s.maxHp;
     this.light = new PointLight(LIGHT.heroColor, LIGHT.heroIntensity, LIGHT.heroDistance, 1.8);
     this.light.castShadow = q.shadows;
     this.light.shadow.mapSize.set(q.shadowMap, q.shadowMap);
@@ -83,6 +90,17 @@ export class Player {
   }
 
   get pos() { return this.model.position; }
+  get maxHp() { return this.s.maxHp; }
+  get armor() { return this.s.armor; }
+
+  /** 換裝、加點之後重新計屬性 */
+  refresh() {
+    const old = this.s.maxHp;
+    this.s = this.hero.stats;
+    if (this.s.maxHp > old) this.hp += this.s.maxHp - old;
+    this.hp = Math.min(this.hp, this.s.maxHp);
+    this.light.distance = LIGHT.heroDistance * (this.hero.has('lamp') ? LEGEND_FX.lamp.radiusMul : 1);
+  }
 
   place(x: number, z: number) {
     this.model.position.set(x, 0, z);
@@ -121,19 +139,22 @@ export class Player {
 
   /** 計傷害（普攻、技能共用公式）；gainRage = 呢下有冇加怒氣 */
   damage(t: Target, mult: number, gainRage = false) {
+    const s = this.s, w = s.weapon;
+    const buff = this.buffTime > 0 ? SKILLS.roar.bonusPct + SKILLS.roar.perLevel * (this.hero.skillLevel('roar') - 1) : 0;
     const { amount, crit } = rollDamage({
-      weapon: HERO.weapon, skillMult: mult, strength: HERO.strength,
-      bonusPct: this.buffTime > 0 ? SKILLS.roar.bonusPct : 0,
-      critChance: HERO.dexterity * HERO.critPerDexterity, critMult: HERO.critMultiplier,
-      targetArmor: t.armor, attackerLevel: HERO.level,
+      weapon: [w[0] + s.fireDmg, w[1] + s.fireDmg], skillMult: mult, strength: s.str,
+      bonusPct: s.dmgPct + buff, critChance: s.crit, critMult: s.critMult,
+      targetArmor: t.armor, attackerLevel: this.hero.level,
     });
     t.takeHit(amount, crit);
-    if (gainRage) this.rage = Math.min(HERO.rageMax, this.rage + HERO.rageOnHit);
+    if (s.lifeSteal) this.hp = Math.min(s.maxHp, this.hp + amount * s.lifeSteal);
+    if (gainRage) this.rage = Math.min(HERO.rageMax, this.rage + s.rageOnHit);
     this.sinceCombat = 0;
   }
 
   hurt(amount: number) {
-    if (this.dead) return;
+    if (this.dead || this.invuln > 0) return;
+    if (Math.random() < this.s.dex * HERO.dodgePerDexterity) { this.onDodge?.(); return; }
     this.onHurt?.(amount);
     this.hp = Math.max(0, this.hp - amount);
     this.rage = Math.min(HERO.rageMax, this.rage + HERO.rageOnHurt);
@@ -146,7 +167,7 @@ export class Player {
 
   respawn(x: number, z: number) {
     this.dead = false;
-    this.hp = this.maxHp;
+    this.hp = this.s.maxHp;
     this.rage = 0;
     this.model.rotation.x = 0;
     this.place(x, z);
@@ -177,7 +198,7 @@ export class Player {
       const a = this.path[i]; return s + Math.hypot(p.x - a.x, p.z - a.z);
     }, 0);
     const run = left > PLAYER.runDistance || (this.current === 'Run' && left > 0.8);
-    const mul = this.speedMul * (this.slowTime > 0 ? 0.6 : 1) * (this.spinning ? SKILLS.whirl.moveMul : 1);
+    const mul = this.speedMul * (this.slowTime > 0 ? 0.6 : 1) * (this.spinning ? SKILLS.whirl.moveMul : 1) * (1 + this.s.moveSpeed / 100);
     const step = Math.min((run ? PLAYER.runSpeed : PLAYER.walkSpeed) * mul * dt, d);
     pos.x += dx / d * step; pos.z += dz / d * step;
     this.yaw = Math.atan2(dx, dz);
@@ -187,7 +208,7 @@ export class Player {
   private fight(dt: number): Clip {
     const g = this.attackTarget;
     if (this.swing >= 0) {
-      this.swing += dt / (this.recover || HERO.attackTime);
+      this.swing += dt / (this.recover || HERO.attackTime / (1 + this.s.atkSpeed / 100));
       if (g) this.yaw = Math.atan2(g.pos.x - this.pos.x, g.pos.z - this.pos.z);
       if (!this.struck && this.swing >= HERO.impactAt) {
         this.struck = true;
@@ -238,6 +259,7 @@ export class Player {
     }
     this.buffTime = Math.max(0, this.buffTime - dt);
     this.slowTime = Math.max(0, this.slowTime - dt);
+    this.invuln = Math.max(0, this.invuln - dt);
     const clip = this.charging ? this.rush(dt) : this.spinning ? this.walk(dt) : this.fight(dt);
     if (this.spinning) this.model.rotation.y += 16 * dt;
     else {

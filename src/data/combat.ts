@@ -8,6 +8,7 @@ export const HERO = {
   hpPerVitality: 5,
   critPerDexterity: 0.002,
   critMultiplier: 1.5,
+  dodgePerDexterity: 0.001,
   armor: 20,
   weapon: [9, 15] as [number, number],
   attackRange: 1.8,

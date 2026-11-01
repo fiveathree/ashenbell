@@ -1,4 +1,5 @@
 import { HERO } from '../data/combat';
+import { LEGEND_FX } from '../data/items';
 import { FX, SKILLS } from '../data/skills';
 import type { Player, Target } from '../entities/player';
 import type { Monster } from '../entities/monster';
@@ -18,6 +19,9 @@ export class Skills {
   private tick = 0;
   private pending: { at: number; run: () => void }[] = [];
   private spin = 0;
+  private bell = 0;
+  private fires: { x: number; z: number; left: number; tick: number }[] = [];
+  private ringCd = 0;
 
   constructor(
     private p: Player, private vfx: Vfx,
@@ -43,6 +47,8 @@ export class Skills {
 
   private stopWhirl() { this.whirling = false; this.p.spinning = false; }
 
+  private lv(id: SkillId) { return this.p.hero.skillLevel(id) - 1; }
+
   private inRadius(r: number) {
     return [...this.targets().filter(m => !m.dead && !m.hidden), ...this.props().filter(o => !o.dead)]
       .filter(t => Math.hypot(t.pos.x - this.p.pos.x, t.pos.z - this.p.pos.z) <= r);
@@ -59,7 +65,13 @@ export class Skills {
       for (const t of this.inRadius(s.radius)) {
         const a = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z);
         if (Math.abs(clampAngle(a - yaw)) > half) continue;
-        p.damage(t, s.mult); n++;
+        p.damage(t, s.mult + s.perLevel * this.lv('heavy')); n++;
+      }
+      // 灰燼之誓：留下燃燒地面
+      if (p.hero.has('oath')) {
+        const f = LEGEND_FX.oath, x = p.pos.x + Math.sin(yaw) * 1.8, z = p.pos.z + Math.cos(yaw) * 1.8;
+        this.fires.push({ x, z, left: f.time, tick: 0 });
+        this.vfx.burn(x, z, f.radius, f.time);
       }
       this.vfx.arc(p.pos.x, p.pos.z, yaw, s.radius, s.arc);
       if (n) this.vfx.bump(FX.shakeHeavy * 0.6);
@@ -80,9 +92,10 @@ export class Skills {
     this.cooldown.charge = s.cooldown;
     p.startCharge(to, s.speed, () => {
       for (const t of this.inRadius(s.radius)) {
-        p.damage(t, s.mult);
+        p.damage(t, s.mult + s.perLevel * this.lv('charge'));
         (t as Monster).stun?.(s.stun);
       }
+      if (p.hero.has('drowned')) p.invuln = LEGEND_FX.drowned.time;
       this.vfx.ring(p.pos.x, p.pos.z, s.radius * 1.3);
       this.vfx.bump(FX.shakeHeavy);
     });
@@ -99,7 +112,33 @@ export class Skills {
     this.vfx.bump(FX.shakeHeavy);
   }
 
+  /** 灰燼地面、血鐘指環 */
+  private legends(dt: number) {
+    const p = this.p, f = LEGEND_FX.oath;
+    for (let i = this.fires.length - 1; i >= 0; i--) {
+      const z = this.fires[i];
+      z.left -= dt; z.tick -= dt;
+      if (z.tick <= 0) {
+        z.tick = f.tick;
+        for (const m of this.targets()) {
+          if (!m.dead && !m.hidden && Math.hypot(m.pos.x - z.x, m.pos.z - z.z) < f.radius) p.damage(m, f.mult);
+        }
+      }
+      if (z.left <= 0) this.fires.splice(i, 1);
+    }
+    this.ringCd = Math.max(0, this.ringCd - dt);
+    if (p.hero.has('ring') && !p.dead && this.ringCd === 0 && p.hp / p.maxHp < LEGEND_FX.ring.below) {
+      this.ringCd = LEGEND_FX.ring.cooldown;
+      const r = SKILLS.roar;
+      p.buffTime = r.buffTime;
+      for (const t of this.inRadius(r.radius)) (t as Monster).fear?.(r.fear);
+      this.vfx.ring(p.pos.x, p.pos.z, r.radius);
+      this.vfx.bump(FX.shakeHeavy);
+    }
+  }
+
   update(dt: number) {
+    this.legends(dt);
     for (const k of Object.keys(this.cooldown) as SkillId[]) this.cooldown[k] = Math.max(0, this.cooldown[k] - dt);
     for (let i = this.pending.length - 1; i >= 0; i--) {
       this.pending[i].at -= dt;
@@ -116,9 +155,19 @@ export class Skills {
       if (this.tick <= 0) {
         this.tick = s.tick;
         const hits = this.inRadius(s.radius);
-        for (const t of hits) this.p.damage(t, s.mult, false);
+        for (const t of hits) this.p.damage(t, s.mult + s.perLevel * this.lv('whirl'), false);
         this.maxWhirlHits = Math.max(this.maxWhirlHits, hits.length);
         if (hits.length) this.vfx.bump(FX.shakeHit);
+      }
+      // 院長的斷鐘：每秒一次鐘聲震波
+      if (this.p.hero.has('bell')) {
+        const b = LEGEND_FX.bell;
+        this.bell -= dt;
+        if (this.bell <= 0) {
+          this.bell = b.every;
+          for (const t of this.inRadius(b.radius)) this.p.damage(t, b.mult);
+          this.vfx.ring(this.p.pos.x, this.p.pos.z, b.radius, 0xc8b89a);
+        }
       }
     }
     this.vfx.spin(this.whirling, this.p.pos.x, this.p.pos.z, this.spin);
