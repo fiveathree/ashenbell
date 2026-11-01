@@ -15,14 +15,14 @@ export const STALL = { x: 44, z: 28, w: 5, d: 3, h: 2.5 };
 /** 水井 */
 export const WELL = { x: 22, z: 30, r: 1.1 };
 
-export const LAMPS: [number, number][] = [[27, 33], [36, 21], [47, 24], [22, 22], [36, 38], [18, 34]];
+export const LAMPS: [number, number][] = [[27, 33], [34, 21], [47, 24], [22, 22], [33, 41], [18, 34]];
 
 /** 擺設：真實模型；r > 0 = 行唔過 */
 export const DECOR: { file: string; x: number; z: number; rot?: number; h?: number; r?: number; y?: number }[] = [
   { file: 'woodentable_01.glb', x: 40, z: 23, rot: 0.4, r: 1 },
   { file: 'woodenchair_01.glb', x: 38.8, z: 23.5, rot: 1.8 },
   { file: 'woodenchair_01.glb', x: 41.2, z: 22.2, rot: -1.2 },
-  { file: 'painted_wooden_bench.glb', x: 34, z: 33, rot: 0.8, r: 1 },
+  { file: 'painted_wooden_bench.glb', x: 31, z: 38, rot: 0.8, r: 1 },
   { file: 'painted_wooden_bench.glb', x: 24, z: 37, rot: -0.5, r: 1 },
   { file: 'gothic_statue.glb', x: 40, z: 40, rot: -2.3, h: 1, r: 1 },
   { file: 'dead_tree_trunk.glb', x: 52, z: 40, rot: 1, r: 1.2 },

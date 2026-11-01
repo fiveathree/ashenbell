@@ -299,11 +299,6 @@ export class Monster {
     this.deadFor += dt;
     this.mixer.update(dt);
     this.model.rotation.x = fallAngle(this.deadFor / 0.6);
-    const left = AI.corpseTime - this.deadFor;
-    if (left < AI.fadeTime) {
-      const a = Math.max(0, left / AI.fadeTime);
-      for (const m of this.mats) { m.transparent = true; m.opacity = a; }
-      if (a === 0) this.remove();
-    }
+    if (this.deadFor >= AI.corpseTime) this.remove();
   }
 }

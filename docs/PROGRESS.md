@@ -166,6 +166,15 @@
 - 鐘樓冇鐘模型；遺物、日記地上只有光同標籤，冇模型
 - 第 3 層 Boss、結局留待 Phase 6
 
+## 用戶試玩調整（Phase 7 期間）
+
+- 荒鐘鎮變光：月光、環境光、薄霧；地城保持暗
+- 荒鐘鎮重做：瓦頂屋、客棧、鐵匠鋪、草藥檔、水井、街燈、枱椅、石像、枯樹
+- 同草藥婆傾偈即刻回滿血
+- 鐘樓移位，唔再遮老葛
+- 小地圖、大地圖標示 NPC、傳送石、樓梯；小鎮全圖可見
+- 敵人倒地後直接消失（規格原本係留 10 秒再淡出，用戶要求改；半透明淡出會閃）
+
 ## 發佈（Phase 6 期間補做）
 
 GitHub Pages 原本直接放原始碼，所以線上黑畫面。加咗 `.github/workflows/deploy.yml`：每次 push 去 main 自動打包發佈。網址 https://fiveathree.github.io/ashenbell/ 。同時加咗 favicon 同分享圖（`scripts/make-brand.mjs`）。規格寫 Cloudflare，用戶用咗 GitHub Pages，兩者都免費。

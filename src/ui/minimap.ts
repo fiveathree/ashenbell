@@ -2,7 +2,10 @@ import { CELL, VIEW } from '../data/dungeon';
 import { T, type Dungeon } from '../world/dungeon';
 
 /** 小地圖同 Tab 大地圖共用：只畫行過嘅格，方向同鏡頭一樣（斜 45°） */
+export interface Marker { x: number; z: number; color: string; label: string; short: string; always: boolean }
+
 export class MiniMap {
+  markers: Marker[] = [];
   explored = new Map<number, Uint8Array>();
   private cur!: Uint8Array;
   private d!: Dungeon;
@@ -21,6 +24,9 @@ export class MiniMap {
     this.dirty = true;
   }
 
+  /** 小鎮一開始就全圖可見 */
+  revealAll() { this.cur.fill(1); }
+
   /** 主角附近標記為已探索 */
   reveal(x: number, z: number) {
     const d = this.d, R = Math.ceil(VIEW.revealRadius / CELL), c0 = Math.floor(x / CELL), r0 = Math.floor(z / CELL);
@@ -32,7 +38,7 @@ export class MiniMap {
     }
   }
 
-  private draw(cv: HTMLCanvasElement, px: number, pz: number, scale: number, follow: boolean) {
+  private draw(cv: HTMLCanvasElement, px: number, pz: number, scale: number, follow: boolean, big = false) {
     const ctx = cv.getContext('2d')!, d = this.d;
     const W = cv.width, H = cv.height;
     ctx.clearRect(0, 0, W, H);
@@ -64,11 +70,36 @@ export class MiniMap {
     ctx.arc(px / CELL, pz / CELL, 3.4 / scale, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+    // 標記用畫面座標畫，字先唔會跟地圖斜
+    const cos = Math.SQRT1_2, sin = Math.SQRT1_2;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = `700 ${big ? 24 : 17}px "Noto Serif TC",serif`;
+    for (const m of this.markers) {
+      const c = m.x / CELL, r = m.z / CELL;
+      if (!m.always && !seen(Math.floor(c), Math.floor(r))) continue;
+      const dx = (c - ox) * scale, dz = (r - oz) * scale;
+      const sx = W / 2 + dx * cos - dz * sin, sy = H / 2 + dx * sin + dz * cos;
+      if (sx < 8 || sy < 8 || sx > W - 8 || sy > H - 8) continue;
+      // 小地圖：圓點入面一個字；大地圖：圓點加全名
+      ctx.fillStyle = m.color;
+      ctx.beginPath(); ctx.arc(sx, sy, big ? 8 : 12, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#0b0807'; ctx.lineWidth = 1.5; ctx.stroke();
+      if (big) {
+        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(8,5,3,.9)';
+        ctx.strokeText(m.label, sx, sy - 14);
+        ctx.fillText(m.label, sx, sy - 14);
+      } else {
+        ctx.fillStyle = '#0b0807';
+        ctx.fillText(m.short, sx, sy + 6);
+      }
+    }
+    ctx.restore();
   }
 
   update(px: number, pz: number, showBig: boolean) {
     this.draw(this.small, px, pz, this.small.width / 34, true);
-    if (showBig) this.draw(this.big, px, pz, this.big.height / 62, false);
+    if (showBig) this.draw(this.big, px, pz, this.big.height / (this.d.rows * 1.08), false, true);
     this.dirty = false;
   }
 }

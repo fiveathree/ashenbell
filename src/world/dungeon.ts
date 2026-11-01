@@ -242,7 +242,7 @@ export function townDungeon(): Dungeon {
   return {
     seed: 0, floor: -1, cols, rows, tiles, rooms: [room], down: gate, up: { c: -1, r: -1, x: -9, z: -9 },
     torches, props: [], pillars: [], spawns: [], altars: [], chests: [], rects, solids,
-    waystone: { x: gate.x + 4.2, z: gate.z + 3.4 }, tower: { x: 30, z: 27 },
+    waystone: { x: gate.x + 4.2, z: gate.z + 3.4 }, tower: { x: 38, z: 31 },
   };
 }
 

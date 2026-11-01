@@ -261,6 +261,12 @@ async function start() {
     player.attackTarget = null;
     focus.copy(player.pos).setY(1);
     map.use(d);
+    map.markers = [
+      { x: d.waystone.x, z: d.waystone.z, color: '#6fd0d8', label: '傳送石', short: '傳', always: floor < 0 },
+      ...npcs.map(n => ({ x: n.pos.x, z: n.pos.z, color: '#7fd27f', label: NPCS[n.id].name, short: NPCS[n.id].name.at(-1) === '婆' ? '藥' : NPCS[n.id].name[n.id === 'ge' ? 1 : 0], always: true })),
+      ...(d.down.c >= 0 ? [{ x: d.down.x, z: d.down.z, color: '#d9771f', label: floor < 0 ? '地窖入口' : '下層樓梯', short: '落', always: floor < 0 }] : []),
+    ];
+    if (floor < 0) map.revealAll();
     hud.floor(placeName(floor));
     hud.gold(hero.gold);
     world.floor = floor;
@@ -322,6 +328,12 @@ async function start() {
       ui.dialog(n.name, 'ge', lines, ending ? [{ label: '收低呢頁', fn: () => ui.ending(ENDING.lines, ENDING.title, save) }] : []);
       save();
       return;
+    }
+    // 草藥婆一傾偈就幫手回滿血
+    if (n.id === 'herb' && player.hp < player.maxHp) {
+      player.hp = player.maxHp;
+      floats.add(player.pos.x, 1.9, player.pos.z, '生命回滿', 'gold');
+      sound.play('potion');
     }
     const mode = n.id === 'dala' ? 'smith' : 'herb';
     const open = () => { ui.openShop(mode, Math.random); if (!panels.invOpen) panels.toggle('inv'); };

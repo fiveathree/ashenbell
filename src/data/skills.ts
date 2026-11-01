@@ -15,4 +15,6 @@ export const FX = {
   floatLife: 0.85,
   floatMax: 40,
   bloodDecals: 36,
+  bloodLife: 10,
+  bloodFade: 2,
 };

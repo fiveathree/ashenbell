@@ -124,7 +124,7 @@ export class Vfx {
     m.rotation.y = Math.random() * Math.PI * 2;
     m.scale.setScalar(0.8 + Math.random() * 0.8);
     this.scene.add(m);
-    this.decals.push({ mesh: m, life: AI.corpseTime });
+    this.decals.push({ mesh: m, life: FX.bloodLife });
   }
 
   private killDecal(i: number) {
@@ -175,7 +175,7 @@ export class Vfx {
     for (let i = this.decals.length - 1; i >= 0; i--) {
       const d = this.decals[i];
       d.life -= dt;
-      if (d.life < AI.fadeTime) (d.mesh.material as MeshBasicMaterial).opacity = 0.8 * Math.max(0, d.life / AI.fadeTime);
+      if (d.life < FX.bloodFade) (d.mesh.material as MeshBasicMaterial).opacity = 0.8 * Math.max(0, d.life / FX.bloodFade);
       if (d.life <= 0) this.killDecal(i);
     }
     for (let i = this.arrows.length - 1; i >= 0; i--) {

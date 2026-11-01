@@ -35,8 +35,7 @@ export const AI = {
   repath: 0.5,
   stagger: 0.25,
   separation: 0.9,
-  corpseTime: 10,
-  fadeTime: 2,
+  corpseTime: 0.9, // 倒地動作完就消失，唔做半透明淡出（會閃）
   levelHp: 0.28,
   levelDamage: 0.16,
   flee: { below: 0.25, chance: 0.3, time: 2.5 },
