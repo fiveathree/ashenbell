@@ -30,3 +30,12 @@
 .dead{position:absolute;inset:0;display:grid;place-content:center;text-align:center;background:radial-gradient(circle,rgba(40,0,0,.25),rgba(0,0,0,.72))}
 .dead h2{margin:0;font-size:calc(40*var(--u));font-weight:400;letter-spacing:.3em;color:#a51c14;text-shadow:0 0 calc(14*var(--u)) #000}
 .dead p{margin:calc(8*var(--u)) 0 0;font-size:calc(15*var(--u));letter-spacing:.16em}
+
+.gold{position:absolute;left:calc(20*var(--u));top:calc(40*var(--u));font-size:calc(13*var(--u));color:#a8956c;text-shadow:0 1px 3px #000}
+.gold b{color:#e8d84a;font-weight:400}
+.mini{position:absolute;right:calc(16*var(--u));top:calc(14*var(--u));width:calc(170*var(--u))}
+.mini canvas{display:block;width:calc(170*var(--u));height:calc(170*var(--u));border-radius:50%;background:radial-gradient(circle,rgba(14,10,7,.62),rgba(6,4,3,.82));box-shadow:0 0 0 1px var(--gold),0 0 calc(10*var(--u)) #000}
+.floorname{text-align:center;margin-top:calc(5*var(--u));font-size:calc(13*var(--u));letter-spacing:.14em;text-shadow:0 1px 3px #000}
+.bigmap{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);height:calc(560*var(--u));width:calc(880*var(--u));background:rgba(6,4,3,.72);box-shadow:0 0 0 1px var(--gold)}
+.loading{position:absolute;inset:0;display:grid;place-items:center;background:#0b0807}
+.loading h2{font-size:calc(30*var(--u));font-weight:400;letter-spacing:.4em;color:var(--bone)}

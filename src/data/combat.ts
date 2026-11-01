@@ -41,11 +41,4 @@ export const GHOUL = {
   scale: 0.96,
 };
 
-export const TEST_ROOM = {
-  goal: 10,
-  waveSize: 10,
-  minSpawnDistance: 6,
-  nextWaveDelay: 6,
-};
-
 export const NAV = { cell: 0.5, holdRepeat: 0.2, repath: 0.3, heroRadius: 0.45 };

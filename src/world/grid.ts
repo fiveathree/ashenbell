@@ -10,6 +10,7 @@ export class Grid {
   readonly w: number;
   readonly h: number;
   readonly blocked: Uint8Array;
+  private base: Uint8Array | null = null;
 
   constructor(readonly bounds: Rect, readonly cell: number) {
     this.w = Math.ceil((bounds.maxX - bounds.minX) / cell);
@@ -26,6 +27,29 @@ export class Grid {
     return c < 0 || r < 0 || c >= this.w || r >= this.h || this.blocked[r * this.w + c] === 1;
   }
   isBlocked(x: number, z: number) { return this.cellBlocked(this.cx(x), this.cz(z)); }
+
+  /** 由「呢點行唔行得」起牆，四周按 pad 膨脹 */
+  stampWalls(walkable: (x: number, z: number) => boolean, pad: number) {
+    const k = pad * Math.SQRT1_2;
+    const offs = [[0, 0], [pad, 0], [-pad, 0], [0, pad], [0, -pad], [k, k], [k, -k], [-k, k], [-k, -k]];
+    for (let r = 0; r < this.h; r++) for (let c = 0; c < this.w; c++) {
+      const x = this.wx(c), z = this.wz(r);
+      if (offs.some(([dx, dz]) => !walkable(x + dx, z + dz))) this.blocked[r * this.w + c] = 1;
+    }
+  }
+
+  private circleCells(o: Circle, pad: number, fn: (i: number) => void) {
+    const R = o.r + pad;
+    for (let r = this.cz(o.z - R); r <= this.cz(o.z + R); r++) for (let c = this.cx(o.x - R); c <= this.cx(o.x + R); c++) {
+      if (c < 0 || r < 0 || c >= this.w || r >= this.h) continue;
+      if (Math.hypot(this.wx(c) - o.x, this.wz(r) - o.z) < R) fn(r * this.w + c);
+    }
+  }
+  stampCircle(o: Circle, pad: number) { this.circleCells(o, pad, i => { this.blocked[i] = 1; }); }
+
+  /** 記低永久障礙；之後可以移除嘅（可打破道具）用 clearCircle 還原 */
+  freeze() { this.base = this.blocked.slice(); }
+  clearCircle(o: Circle, pad: number) { this.circleCells(o, pad, i => { this.blocked[i] = this.base![i]; }); }
 
   /** 將圓形同長方形障礙寫入格仔；pad = 角色半徑 */
   stamp(circles: Circle[], rects: Rect[], pad: number) {

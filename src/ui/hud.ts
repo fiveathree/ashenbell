@@ -2,6 +2,10 @@
 const html = `
 <div id="hud">
   <div class="quest" id="quest"></div>
+  <div class="gold">金幣 <b id="gold">0</b></div>
+  <div class="mini"><canvas id="mini" width="220" height="220"></canvas><div class="floorname" id="floorName"></div></div>
+  <canvas class="bigmap" id="bigmap" width="1100" height="700" hidden></canvas>
+  <div class="loading" id="lvLoad" hidden><h2 id="lvName"></h2></div>
   <div class="target" id="target" hidden><div class="tname" id="tname"></div><div class="tbar"><i id="tfill"></i></div></div>
   <div class="dock">
     <div class="orb hp" title="生命"><i id="hpFill"></i><span id="hpText"></span></div>
@@ -22,8 +26,19 @@ const $ = (id: string) => document.getElementById(id)!;
 
 export class Hud {
   private last = '';
+  mini: HTMLCanvasElement;
+  big: HTMLCanvasElement;
 
-  constructor() { document.body.insertAdjacentHTML('beforeend', html); }
+  constructor() {
+    document.body.insertAdjacentHTML('beforeend', html);
+    this.mini = $('mini') as HTMLCanvasElement;
+    this.big = $('bigmap') as HTMLCanvasElement;
+  }
+
+  gold(n: number) { $('gold').textContent = String(n); }
+  floor(name: string) { $('floorName').textContent = name; }
+  loading(name: string | null) { $('lvLoad').hidden = !name; if (name) $('lvName').textContent = name; }
+  showMap(on: boolean) { this.big.hidden = !on; }
 
   update(hp: number, maxHp: number, rage: number, rageMax: number, quest: string, dead: boolean) {
     const key = `${hp}|${Math.round(rage)}|${quest}|${dead}`;
@@ -37,10 +52,12 @@ export class Hud {
     $('deadBox').hidden = !dead;
   }
 
-  target(t: { name: string; hp: number; maxHp: number } | null) {
+  target(t: { name: string; hp?: number; maxHp?: number } | null) {
     $('target').hidden = !t;
     if (!t) return;
     $('tname').textContent = t.name;
-    $('tfill').style.width = `${t.hp / t.maxHp * 100}%`;
+    const bar = t.maxHp !== undefined;
+    ($('tfill').parentElement as HTMLElement).style.display = bar ? '' : 'none';
+    if (bar) $('tfill').style.width = `${t.hp! / t.maxHp! * 100}%`;
   }
 }

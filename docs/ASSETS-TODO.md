@@ -12,3 +12,8 @@
 |---|---|---|
 | `assets-raw/hero/` | 主角模型同 idle、walk、run、attack ×2、hit reaction、death | knight / paladin |
 | `assets-raw/ghoul/` | 屍鬼模型同 idle、walk、attack、hit reaction、death | zombie |
+
+## Phase 2 之後
+| 素材 | 用途 | 免費來源 |
+|---|---|---|
+| 棺材、骸骨、破長椅、鎖鏈 | 三層主題道具 | 喺 Poly Haven、ambientCG 等 CC0 來源搵，冇就用本機工具生成 |

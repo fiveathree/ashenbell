@@ -36,6 +36,7 @@ export class Ghoul {
   private deadFor = 0;
   private yaw = Math.random() * Math.PI * 2;
   private walking = false;
+  asleep = false;
 
   constructor(private scene: Scene, src: GLTF, private grid: Grid, x: number, z: number, shadows: boolean) {
     this.model = SkeletonUtils.clone(src.scene) as Group;
@@ -79,6 +80,8 @@ export class Ghoul {
     if (this.hp === 0) { this.state = 'dead'; this.deadFor = 0; this.setWalk(false); return; }
     if (this.state !== 'attack') { this.state = 'stagger'; this.timer = GHOUL.staggerTime; }
   }
+
+  remove() { this.scene.remove(this.model); this.gone = true; }
 
   reset() { if (!this.dead) { this.state = 'idle'; this.path = []; } }
 

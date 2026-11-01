@@ -38,9 +38,9 @@ export const LIGHT = {
 
 /** 畫質：Phase 7 先有選單，而家用網址 ?q=low|medium|high 切換 */
 export const QUALITY = {
-  low: { ao: false, aoHalf: true, shadows: false, shadowMap: 512, pixelRatio: 0.75, maxTorches: 4 },
-  medium: { ao: true, aoHalf: true, shadows: true, shadowMap: 1024, pixelRatio: 1, maxTorches: 6 },
-  high: { ao: true, aoHalf: false, shadows: true, shadowMap: 2048, pixelRatio: 1.5, maxTorches: 8 },
+  low: { ao: false, aoHalf: true, shadows: false, ghoulShadows: false, shadowMap: 512, pixelRatio: 0.75, maxTorches: 4 },
+  medium: { ao: true, aoHalf: true, shadows: true, ghoulShadows: false, shadowMap: 1024, pixelRatio: 1, maxTorches: 6 },
+  high: { ao: true, aoHalf: false, shadows: true, ghoulShadows: true, shadowMap: 2048, pixelRatio: 1.5, maxTorches: 8 },
 };
 export type QualityName = keyof typeof QUALITY;
 
@@ -65,12 +65,3 @@ export const PLAYER = {
   fade: 0.18,
 };
 
-export const ROOM = {
-  halfX: 11,
-  halfZ: 8,
-  wallHeight: 4.4,
-  wallThickness: 1,
-  blockWidth: 2,
-  floorTexMeters: 3.2,
-  wallTexMeters: 3.5,
-};

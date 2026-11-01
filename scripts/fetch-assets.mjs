@@ -1,11 +1,18 @@
-// 下載 Phase 0 素材：Poly Haven（CC0）PBR 材質同道具、three.js 官方 Soldier.glb（暫代主角）
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+// 下載素材：Poly Haven（CC0）PBR 材質同道具、three.js 官方 Soldier.glb（暫代主角）
+// 材質縮到 1K webp，每層只喺入嗰層時先載入
+import { mkdirSync, writeFileSync, existsSync, rmSync, renameSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
+import sharp from 'sharp';
 
 const OUT = 'public/assets', RAW = 'assets-raw/polyhaven';
-const TEXTURES = { floor: 'monastery_stone_floor', wall: 'castle_wall_slates' };
+const TEXTURES = {
+  crypt_floor: 'monastery_stone_floor', crypt_wall: 'castle_wall_slates',
+  chapel_floor: 'mossy_cobblestone', chapel_wall: 'mossy_stone_wall',
+  well_floor: 'stone_tiles_02', well_wall: 'rock_wall_08',
+};
 const MODELS = ['wooden_crate_01', 'treasure_chest', 'wooden_candlestick', 'Lantern_01', 'wine_barrel_01', 'wooden_bucket_01'];
+const HEAVY = ['wooden_candlestick', 'treasure_chest', 'wooden_bucket_01'];
 const SOLDIER = 'https://raw.githubusercontent.com/mrdoob/three.js/r170/examples/models/gltf/Soldier.glb';
 
 async function get(url, path) {
@@ -23,7 +30,12 @@ for (const [slot, id] of Object.entries(TEXTURES)) {
   const maps = { albedo: f.Diffuse, normal: f.nor_gl, roughness: f.Rough, ao: f.AO };
   for (const [name, m] of Object.entries(maps)) {
     if (!m) { console.log('no map', id, name); continue; }
-    await get(m['2k'].jpg.url, join(OUT, 'textures', slot, `${name}.jpg`));
+    const raw = join(RAW, 'tex', slot, `${name}.jpg`), out = join(OUT, 'textures', slot, `${name}.webp`);
+    await get(m['2k'].jpg.url, raw);
+    if (!existsSync(out)) {
+      mkdirSync(dirname(out), { recursive: true });
+      await sharp(raw).resize(1024, 1024).webp({ quality: name === 'normal' ? 88 : 80 }).toFile(out);
+    }
   }
 }
 for (const id of MODELS) {
@@ -32,6 +44,15 @@ for (const id of MODELS) {
   await get(g.url, main);
   for (const [rel, inc] of Object.entries(g.include)) await get(inc.url, join(dir, rel));
   const glb = join(OUT, 'models', `${id.toLowerCase()}.glb`);
-  if (!existsSync(glb)) execFileSync('npx', ['gltf-transform', 'webp', main, glb], { stdio: 'inherit', shell: true });
+  if (!existsSync(glb)) {
+    execFileSync('npx', ['gltf-transform', 'webp', main, glb], { stdio: 'inherit', shell: true });
+    // 掃描模型面數太高（蠟燭有 21 萬面），減到 12%
+    if (HEAVY.includes(id)) {
+      const tmp = glb + '.tmp.glb';
+      execFileSync('npx', ['gltf-transform', 'simplify', glb, tmp, '--ratio', '0.12', '--error', '0.01'], { stdio: 'inherit', shell: true });
+      renameSync(tmp, glb);
+    }
+  }
 }
 await get(SOLDIER, join(OUT, 'models', 'soldier.glb'));
+for (const old of ['floor', 'wall']) rmSync(join(OUT, 'textures', old), { recursive: true, force: true });

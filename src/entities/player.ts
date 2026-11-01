@@ -4,7 +4,15 @@ import { LIGHT, PLAYER } from '../data/art';
 import { HERO, NAV } from '../data/combat';
 import { rollDamage } from '../combat/damage';
 import type { Grid, Pt } from '../world/grid';
-import type { Ghoul } from './ghoul';
+
+/** 主角攻擊得到嘅嘢：怪物或者可打破道具 */
+export interface Target {
+  name: string;
+  pos: { x: number; z: number; distanceTo(v: unknown): number };
+  armor: number;
+  dead: boolean;
+  takeHit(amount: number, crit: boolean): void;
+}
 import { applySwing, fallAngle, findBones, type SwingBones } from './pose';
 
 type Clip = 'Idle' | 'Walk' | 'Run';
@@ -18,8 +26,10 @@ export class Player {
   rage = 0;
   dead = false;
   deadFor = 0;
-  attackTarget: Ghoul | null = null;
+  attackTarget: Target | null = null;
+  speedMul = 1;
 
+  arrived: (() => void) | null = null;
   private path: Pt[] = [];
   private mixer!: AnimationMixer;
   private actions = {} as Record<Clip, AnimationAction>;
@@ -31,7 +41,7 @@ export class Player {
   private repath = 0;
   private sinceCombat = 99;
 
-  constructor(private scene: Scene, private grid: Grid, q: { shadows: boolean; shadowMap: number }) {
+  constructor(private scene: Scene, public grid: Grid, q: { shadows: boolean; shadowMap: number }) {
     this.light = new PointLight(LIGHT.heroColor, LIGHT.heroIntensity, LIGHT.heroDistance, 1.8);
     this.light.castShadow = q.shadows;
     this.light.shadow.mapSize.set(q.shadowMap, q.shadowMap);
@@ -76,7 +86,7 @@ export class Player {
     this.path = this.grid.findPath(this.pos, p);
   }
 
-  attack(g: Ghoul) {
+  attack(g: Target) {
     if (this.dead) return;
     this.attackTarget = g;
     this.repath = 0;
@@ -120,12 +130,12 @@ export class Player {
     if (!next) return 'Idle';
     const pos = this.pos;
     const dx = next.x - pos.x, dz = next.z - pos.z, d = Math.hypot(dx, dz);
-    if (d < 0.08) { this.path.shift(); return this.walk(dt); }
+    if (d < 0.08) { this.path.shift(); if (!this.path.length) this.arrived?.(); return this.walk(dt); }
     const left = d + this.path.slice(1).reduce((s, p, i) => {
       const a = this.path[i]; return s + Math.hypot(p.x - a.x, p.z - a.z);
     }, 0);
     const run = left > PLAYER.runDistance || (this.current === 'Run' && left > 0.8);
-    const step = Math.min((run ? PLAYER.runSpeed : PLAYER.walkSpeed) * dt, d);
+    const step = Math.min((run ? PLAYER.runSpeed : PLAYER.walkSpeed) * this.speedMul * dt, d);
     pos.x += dx / d * step; pos.z += dz / d * step;
     this.yaw = Math.atan2(dx, dz);
     return run ? 'Run' : 'Walk';
@@ -156,7 +166,7 @@ export class Player {
     return this.walk(dt);
   }
 
-  private strike(g: Ghoul) {
+  private strike(g: Target) {
     const { amount, crit } = rollDamage({
       weapon: HERO.weapon, strength: HERO.strength, critChance: HERO.dexterity * HERO.critPerDexterity,
       critMult: HERO.critMultiplier, targetArmor: g.armor, attackerLevel: HERO.level,
